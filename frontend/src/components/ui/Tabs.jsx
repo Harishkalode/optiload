@@ -1,0 +1,1 @@
+export default function Tabs({ items, active, onChange }) { return <div className="tabs-inline">{items.map((item) => <button key={item} className={active === item ? 'on' : ''} onClick={() => onChange(item)}>{item}</button>)}</div> }

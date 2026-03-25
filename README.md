@@ -1,44 +1,56 @@
-# Optiload
+# OptiLoad
 
-Optiload is a full-stack starter for rail / heavy logistics load optimization.
+OptiLoad now includes a **production-oriented frontend system spec implementation** for rail/heavy logistics SaaS operations.
 
-## Current scope
-This version focuses on **admin-side backend capabilities** needed by an enterprise SaaS UI:
-- Organization onboarding (admin signup)
-- Auth and role-based access (`superuser`, `admin`, `sub-admin`)
-- Dashboard KPIs and recent jobs
-- Warehouse management
-- Vehicle management
-- Load management
-- Optimization job orchestration (step-based payload)
-- API key management
+## Frontend architecture (React-optimized)
+```
+src/
+ ├── app/
+ │    ├── layout/
+ │    ├── dashboard/
+ │    ├── vehicles/
+ │    ├── loads/
+ │    ├── optimizations/
+ │    ├── templates/
+ │    ├── reports/
+ │    ├── users/
+ │    ├── settings/
+ │    └── auth/
+ ├── components/
+ │    ├── ui/
+ │    └── 3d/
+ ├── theme/
+ ├── store/
+ ├── hooks/
+ └── utils/
+```
 
-## Tech stack
-- **Frontend:** React (Vite)
-- **Backend:** FastAPI + SQLAlchemy
-- **Database:** SQLite (local) or PostgreSQL (Docker)
-- **Auth:** JWT bearer tokens
+## Design system implementation
+- Strict spacing token system and layout metrics (8px based).
+- Semantic color tokens with dark/light mode support.
+- Palette engine (`industrialBlue`, `safetyOrange`, `steelTeal`, `railRed`) and highlight override.
+- Reusable UI primitives:
+  - Button, Card, Table, Modal, Drawer, Stepper, Badge, Toggle, Select, Tabs, Toast.
+- SaaS shell:
+  - Fixed 240px sidebar
+  - Sticky 72px top navbar
+  - 12-column content grid and 1440px max width
 
-## Backend APIs
-### Authentication
-- `POST /auth/login`
-- `POST /auth/signup/admin`
+## 3D UX implementation scaffold
+- `RailcarScene` with modular sub-components:
+  - `LoadMesh`
+  - `CameraControls`
+  - `HighlightLayer`
+- Supports interaction states scaffold:
+  - hover highlight + tooltip
+  - selected load state
+  - violation visualization mode
+  - compare mode split visualization marker
 
-### Users & access
-- `GET /users/me`
-- `GET /users`
-- `POST /users`
-
-### Admin modules
-- `GET /dashboard`
-- `GET/POST /warehouses`
-- `GET/POST /vehicles`
-- `GET/POST /loads`
-- `GET/POST /optimizations`
-- `GET/POST /api-keys`
+## Backend modules
+- Auth, users, dashboard, warehouses, vehicles, loads, optimizations, API keys.
 
 ## Local development
-### 1) Backend
 ```bash
 cd backend
 python -m venv .venv
