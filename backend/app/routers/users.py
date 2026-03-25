@@ -26,8 +26,8 @@ def list_users(
     if "superuser" in user_roles:
         return query.all()
     if "admin" in user_roles:
-        return query.filter((User.id == current_user.id) | (User.parent_admin_id == current_user.id)).all()
-    return [current_user]
+        return query.filter(User.organization_id == current_user.organization_id).all()
+    return query.filter(User.id == current_user.id).all()
 
 
 @router.post("", response_model=UserRead)
@@ -48,13 +48,14 @@ def create_user(
         raise HTTPException(status_code=403, detail="Admin can only create sub-admin users")
 
     parent_admin_id = payload.parent_admin_id
-    if payload.role == "sub-admin":
-        parent_admin_id = current_user.id if "admin" in current_user_roles else payload.parent_admin_id
+    if payload.role == "sub-admin" and "admin" in current_user_roles:
+        parent_admin_id = current_user.id
 
     user = User(
         email=payload.email,
         full_name=payload.full_name,
         hashed_password=hash_password(payload.password),
+        organization_id=current_user.organization_id,
         parent_admin_id=parent_admin_id,
     )
     user.roles = [role]

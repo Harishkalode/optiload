@@ -38,3 +38,9 @@ def require_role(*allowed_roles: str):
         return user
 
     return _require
+
+
+def require_org_user(user: User = Depends(require_role("admin", "sub-admin"))) -> User:
+    if user.organization_id is None:
+        raise HTTPException(status_code=400, detail="User is not attached to organization")
+    return user

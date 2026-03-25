@@ -1,24 +1,41 @@
 # Optiload
 
-Optiload is a starter full-stack app for user management with hierarchical access control.
+Optiload is a full-stack starter for rail / heavy logistics load optimization.
 
-## User types
-- **Superuser**: platform owner/controller with full visibility.
-- **Admin**: customer account admin.
-- **Sub-admin**: subordinate user managed under an admin.
+## Current scope
+This version focuses on **admin-side backend capabilities** needed by an enterprise SaaS UI:
+- Organization onboarding (admin signup)
+- Auth and role-based access (`superuser`, `admin`, `sub-admin`)
+- Dashboard KPIs and recent jobs
+- Warehouse management
+- Vehicle management
+- Load management
+- Optimization job orchestration (step-based payload)
+- API key management
 
 ## Tech stack
 - **Frontend:** React (Vite)
 - **Backend:** FastAPI + SQLAlchemy
 - **Database:** SQLite (local) or PostgreSQL (Docker)
-- **Auth:** JWT-based login
-- **Access Control:** Role + permission model
+- **Auth:** JWT bearer tokens
 
-## Backend API overview
-- `POST /auth/login` — authenticate and receive a bearer token.
-- `GET /users/me` — current authenticated user.
-- `GET /users` — list users based on role scope.
-- `POST /users` — create users (superuser/admin permissions enforced).
+## Backend APIs
+### Authentication
+- `POST /auth/login`
+- `POST /auth/signup/admin`
+
+### Users & access
+- `GET /users/me`
+- `GET /users`
+- `POST /users`
+
+### Admin modules
+- `GET /dashboard`
+- `GET/POST /warehouses`
+- `GET/POST /vehicles`
+- `GET/POST /loads`
+- `GET/POST /optimizations`
+- `GET/POST /api-keys`
 
 ## Local development
 ### 1) Backend
@@ -30,7 +47,6 @@ pip install -r requirements.txt
 cp ../.env.example .env
 uvicorn app.main:app --reload
 ```
-Backend runs on `http://localhost:8000`.
 
 ### 2) Frontend
 ```bash
@@ -39,20 +55,14 @@ npm install
 cp ../.env.example .env
 npm run dev
 ```
-Frontend runs on `http://localhost:5173`.
 
 ## Docker development
 ```bash
 docker compose up --build
 ```
 
-This starts:
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8000`
-- Postgres: `localhost:5432`
+## Seed users
+- Superuser: `owner@optiload.local` / `ChangeMe123!`
+- Demo admin: `admin@demo.optiload.local` / `ChangeMe123!`
 
-## Default seeded superuser
-- Email: `owner@optiload.local`
-- Password: `ChangeMe123!`
-
-> Change secrets/passwords before production use.
+> Change all default credentials and secret keys before production use.

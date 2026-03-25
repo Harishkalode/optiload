@@ -2,8 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import Base, engine, SessionLocal
-from app.routers import auth, users
+from app.database import Base, SessionLocal, engine
+from app.routers import api_keys, auth, dashboard, loads, optimizations, users, vehicles, warehouses
 from app.seed import seed_defaults
 
 app = FastAPI(title=settings.app_name)
@@ -34,3 +34,9 @@ def health() -> dict[str, str]:
 
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(dashboard.router)
+app.include_router(warehouses.router)
+app.include_router(vehicles.router)
+app.include_router(loads.router)
+app.include_router(optimizations.router)
+app.include_router(api_keys.router)
