@@ -60,6 +60,7 @@ cp ../.env.example .env
 uvicorn app.main:app --reload
 ```
 
+### 2) Frontend
 ```bash
 cd frontend
 npm install
@@ -67,7 +68,13 @@ cp ../.env.example .env
 npm run dev
 ```
 
-## Docker
+## Docker development
 ```bash
 docker compose up --build
 ```
+
+## Seed users
+- Superuser: `owner@optiload.local` / `ChangeMe123!`
+- Demo admin: `admin@demo.optiload.local` / `ChangeMe123!`
+
+> Change all default credentials and secret keys before production use.
