@@ -1,0 +1,1 @@
+export default function Stepper({ steps, active }) { return <div className="stepper">{steps.map((step, idx) => <div key={step} className={`step ${idx <= active ? 'on' : ''}`}>{idx + 1}. {step}</div>)}</div> }
