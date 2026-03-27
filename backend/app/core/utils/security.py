@@ -12,6 +12,14 @@ def _bcrypt_safe_bytes(password: str) -> bytes:
     return password.encode("utf-8")[:BCRYPT_MAX_INPUT_LENGTH]
 
 
+BCRYPT_MAX_INPUT_LENGTH = 72
+
+
+def _bcrypt_safe(password: str) -> str:
+    # bcrypt ignores bytes after 72, so we enforce deterministic truncation before hashing.
+    return password[:BCRYPT_MAX_INPUT_LENGTH]
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(_bcrypt_safe_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
