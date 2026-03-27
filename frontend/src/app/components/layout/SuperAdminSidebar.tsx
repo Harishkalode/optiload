@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 
 const SA_NAV = [
-  { icon: Globe, label: 'Global Dashboard', path: '/super-admin' },
+  { icon: Globe, label: 'Global Dashboard', path: '/super-admin/dashboard' },
   { icon: Building2, label: 'Organizations', path: '/super-admin/organizations' },
   { icon: Users, label: 'Users (Global)', path: '/super-admin/users' },
   { icon: Activity, label: 'System Monitoring', path: '/super-admin/monitoring' },
@@ -72,9 +72,7 @@ export function SuperAdminSidebar() {
           </div>
         )}
         {SA_NAV.map(({ icon: Icon, label, path }) => {
-          const isActive = path === '/super-admin'
-            ? location.pathname === '/super-admin'
-            : location.pathname.startsWith(path);
+          const isActive = location.pathname === path || location.pathname.startsWith(path + '/');
           return (
             <div key={path} className="relative px-2 mb-0.5">
               {isActive && (

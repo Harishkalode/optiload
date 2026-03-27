@@ -1,23 +1,37 @@
 import { apiRequest } from './http';
 
-export type BackendRole = 'super_admin' | 'admin' | 'sub_admin' | string;
-
-export interface LoginResponse {
-  access_token: string;
-  user: {
-    id: number;
-    name: string;
-    email: string;
-    status: string;
-    mfa_enabled: boolean;
-  };
-  role: BackendRole;
+export interface AuthUserPayload {
+  id: number;
+  name?: string;
+  email?: string;
+  role: string;
   organization_id: number | null;
+  mfa_enabled?: boolean;
 }
 
-export async function loginRequest(email: string, password: string): Promise<LoginResponse> {
-  return apiRequest<LoginResponse>('/auth/login', {
+export interface AuthResponse {
+  access_token: string;
+  refresh_token?: string;
+  user: AuthUserPayload;
+}
+
+export interface RegisterRequestPayload {
+  full_name: string;
+  email: string;
+  password: string;
+  organization_name: string;
+}
+
+export async function loginRequest(email: string, password: string): Promise<AuthResponse> {
+  return apiRequest<AuthResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function registerRequest(payload: RegisterRequestPayload): Promise<AuthResponse> {
+  return apiRequest<AuthResponse>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
