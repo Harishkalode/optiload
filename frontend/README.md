@@ -1,11 +1,21 @@
+# OptiLoad Frontend
 
-  # Optiload app
+## Local run
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
 
-  This is a code bundle for Optiload app. The original project is available at https://www.figma.com/design/uCXzMa0y6dWNuPwGCiLma6/Optiload-app.
+## Backend connection
+- `VITE_API_BASE_URL` defaults to `http://localhost:8000/api/v1`.
+- Auth token is read from `localStorage` and sent as `Authorization: Bearer <token>`.
 
-  ## Running the code
+## Docker
+Run with root `docker compose up --build` and open `http://localhost:8080`.
 
-  Run `npm i` to install the dependencies.
-
-  Run `npm run dev` to start the development server.
-  
+## Dependency conflict fix
+If you previously saw `ERESOLVE` around `@react-three/fiber` requiring React 19, this repo pins compatible React-18 versions:
+- `@react-three/fiber@8.17.10`
+- `@react-three/drei@9.120.4`

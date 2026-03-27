@@ -1,24 +1,11 @@
-import { useAuth, UserRole } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useState, CSSProperties, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { Eye, EyeOff, Loader2, ArrowRight, Shield, UserCog } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowRight, Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTheme } from '../contexts/ThemeContext';
 
 type Mode = 'login' | 'signup';
-
-const ROLES: UserRole[] = [
-  'Super Admin',
-  'Organization Owner',
-  'Admin',
-  'Sub-Admin',
-  'Operations Manager',
-  'Rail Planner',
-  'Compliance Officer',
-  'Yard Supervisor',
-  'Loader Operator',
-  'Viewer',
-];
 
 export function Login() {
   const { isDark, palette } = useTheme();
@@ -34,7 +21,6 @@ export function Login() {
     confirm: '', 
     invite: '', 
     remember: false,
-    role: 'Admin' as UserRole
   });
 
   const bg = isDark ? '#060B10' : '#F1F5F9';
@@ -54,9 +40,11 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(form.email, form.password, form.role);
-      await new Promise(r => setTimeout(r, 800));
-      if (form.role === 'Super Admin') {
+      await login(form.email, form.password);
+      await new Promise(r => setTimeout(r, 400));
+      const stored = localStorage.getItem('optiload_user');
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed?.role === 'Super Admin') {
         navigate('/super-admin');
       } else {
         navigate('/');
@@ -169,31 +157,6 @@ export function Login() {
                 </button>
               </div>
             </div>
-
-            {mode === 'login' && (
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: textPrimary, marginBottom: 6 }}>
-                  <div className="flex items-center gap-2">
-                    <UserCog size={14} />
-                    Login as Role (for testing)
-                  </div>
-                </label>
-                <select 
-                  style={{ ...inputStyle, cursor: 'pointer' }} 
-                  value={form.role} 
-                  onChange={e => setForm({ ...form, role: e.target.value as UserRole })}
-                  onFocus={e => (e.target.style.borderColor = palette.primary)}
-                  onBlur={e => (e.target.style.borderColor = border)}
-                >
-                  {ROLES.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
-                <p style={{ fontSize: '11px', color: text, marginTop: 4 }}>
-                  Select a role to test different permission levels
-                </p>
-              </div>
-            )}
 
             {mode === 'signup' && (
               <div>
