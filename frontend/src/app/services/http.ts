@@ -27,11 +27,22 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     },
   });
 
-  const payload = (await response.json()) as ApiEnvelope<T>;
+  let payload: ApiEnvelope<T> | null = null;
+  try {
+    payload = (await response.json()) as ApiEnvelope<T>;
+  } catch {
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+  }
 
-  if (!response.ok || !payload.success) {
+  if (!response.ok || (payload && !payload.success)) {
     const message = payload?.error?.message ?? `Request failed: ${response.status}`;
     throw new Error(message);
+  }
+
+  if (!payload) {
+    throw new Error('Empty response payload from API');
   }
 
   return payload.data;

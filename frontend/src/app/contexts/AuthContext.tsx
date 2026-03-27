@@ -37,6 +37,19 @@ function mapBackendRole(role: string): UserRole {
   }
 }
 
+function loadStoredUser(): User | null {
+  try {
+    const stored = localStorage.getItem('optiload_user');
+    if (!stored) return null;
+    return JSON.parse(stored) as User;
+  } catch (error) {
+    console.warn('Failed to parse stored user. Clearing invalid auth payload.', error);
+    localStorage.removeItem('optiload_user');
+    localStorage.removeItem('optiload_access_token');
+    return null;
+  }
+}
+
 export function isSuperAdmin(user: User | null): boolean {
   return user?.role === 'Super Admin';
 }
@@ -55,10 +68,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('optiload_user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<User | null>(loadStoredUser);
 
   const login = async (email: string, password: string) => {
     const response = await loginRequest(email, password);
