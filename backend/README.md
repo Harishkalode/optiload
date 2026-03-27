@@ -4,6 +4,7 @@
 ```bash
 cd backend
 cp .env.example .env
+pip install -r requirements.txt
 uv run uvicorn app.main:app --reload
 ```
 
