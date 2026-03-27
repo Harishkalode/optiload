@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: optiload
+      POSTGRES_USER: optiload
+      POSTGRES_PASSWORD: optiload_secure_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      OPTILOAD_DATABASE_URL: postgresql+psycopg://optiload:optiload_secure_password@db:5432/optiload
+      OPTILOAD_CORS_ALLOWED_ORIGINS: '["http://localhost:5173","http://localhost:8080"]'
+      OPTILOAD_TRUSTED_HOSTS: '["localhost","127.0.0.1","backend"]'
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000/api/v1
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:

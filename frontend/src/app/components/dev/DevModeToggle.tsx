@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { Code2, X, ExternalLink, Layers, Database, Globe, Zap, GitBranch, Server, BookOpen } from 'lucide-react';
 import { useDevMode } from '../../contexts/DevModeContext';
-import { useNavigate } from 'react-router';
 
 export function DevModeToggle() {
   const { devMode, toggleDevMode } = useDevMode();
-  const navigate = useNavigate();
+  const goTo = (path: string) => { window.location.assign(path); };
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -83,7 +82,7 @@ export function DevModeToggle() {
           ].map(({ label, icon: Icon, path }) => (
             <button
               key={label}
-              onClick={() => { navigate(path); setExpanded(false); }}
+              onClick={() => { goTo(path); setExpanded(false); }}
               className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 transition-colors"
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: 11,
                 textAlign: 'left', marginBottom: 2 }}
@@ -97,7 +96,7 @@ export function DevModeToggle() {
           ))}
 
           <button
-            onClick={() => { navigate('/dev/integration-map'); setExpanded(false); }}
+            onClick={() => { goTo('/dev/integration-map'); setExpanded(false); }}
             className="flex items-center justify-center gap-2 w-full rounded-lg py-2 mt-2 transition-colors"
             style={{ background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.25)',
               color: '#22D3EE', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
@@ -122,7 +121,7 @@ export function DevModeToggle() {
           ].map(({ label, icon: Icon, tab }) => (
             <button
               key={tab}
-              onClick={() => { navigate('/dev/api-docs'); setExpanded(false); }}
+              onClick={() => { goTo('/dev/api-docs'); setExpanded(false); }}
               className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 transition-colors"
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: 11,
                 textAlign: 'left', marginBottom: 2 }}
@@ -136,7 +135,7 @@ export function DevModeToggle() {
           ))}
 
           <button
-            onClick={() => { navigate('/dev/api-docs'); setExpanded(false); }}
+            onClick={() => { goTo('/dev/api-docs'); setExpanded(false); }}
             className="flex items-center justify-center gap-2 w-full rounded-lg py-2 mt-2 transition-colors"
             style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)',
               color: '#818CF8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}

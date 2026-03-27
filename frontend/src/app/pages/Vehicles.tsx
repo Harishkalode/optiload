@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Search, Plus, Upload, Download, Truck, Eye, Edit3, Copy,
   Archive, Trash2, Filter, CheckSquare, Square, ChevronDown,
@@ -12,17 +12,9 @@ import { OLButton } from '../components/ui/OLButton';
 import { OLModal } from '../components/ui/OLModal';
 import { toast } from 'sonner';
 import { validateVehicleForm, type VehicleFormErrors } from '../engine/AAREngine';
+import { createVehicle, listVehicles } from '../services/vehicleService';
 
-const VEHICLES = [
-  { id: 'V-001', name: 'Flatcar Alpha-7', type: 'Flatcar', dims: '20.0 × 3.2 × 1.8m', maxWeight: '80,000 kg', axles: 4, status: 'active' },
-  { id: 'V-002', name: 'Boxcar Bravo-12', type: 'Boxcar', dims: '15.0 × 2.8 × 3.2m', maxWeight: '65,000 kg', axles: 4, status: 'active' },
-  { id: 'V-003', name: 'Container Delta-3', type: 'Container', dims: '12.2 × 2.4 × 2.9m', maxWeight: '30,480 kg', axles: 2, status: 'maintenance' },
-  { id: 'V-004', name: 'Hopper Echo-9', type: 'Hopper', dims: '18.5 × 3.0 × 3.6m', maxWeight: '100,000 kg', axles: 6, status: 'active' },
-  { id: 'V-005', name: 'Flatcar Foxtrot-2', type: 'Flatcar', dims: '20.0 × 3.2 × 1.8m', maxWeight: '80,000 kg', axles: 4, status: 'inactive' },
-  { id: 'V-006', name: 'Gondola Golf-5', type: 'Gondola', dims: '16.8 × 3.0 × 2.5m', maxWeight: '90,000 kg', axles: 4, status: 'active' },
-];
-
-const VEHICLE_TYPES = ['All Types', 'Flatcar', 'Boxcar', 'Container', 'Hopper', 'Gondola'];
+const VEHICLE_TYPES = ['All Types', 'truck', 'trailer', 'van', 'container'];
 const STATUS_OPTS = ['All Status', 'Active', 'Maintenance', 'Inactive'];
 
 interface VehicleFormData {
@@ -30,7 +22,7 @@ interface VehicleFormData {
   maxWeight: string; axles: string; hazmat: boolean; fragile: boolean; refrigerated: boolean;
 }
 
-const defaultForm: VehicleFormData = { name: '', type: 'Flatcar', length: '', width: '', height: '', maxWeight: '', axles: '4', hazmat: false, fragile: false, refrigerated: false };
+const defaultForm: VehicleFormData = { name: '', type: 'truck', length: '', width: '', height: '', maxWeight: '', axles: '4', hazmat: false, fragile: false, refrigerated: false };
 
 export function Vehicles() {
   const { isDark, palette } = useTheme();
@@ -46,6 +38,16 @@ export function Vehicles() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<VehicleFormErrors>({});
+  const [vehicles, setVehicles] = useState<any[]>([]);
+
+  const loadVehicles = async () => {
+    const apiVehicles = await listVehicles();
+    setVehicles(apiVehicles);
+  };
+
+  useEffect(() => {
+    void loadVehicles();
+  }, []);
 
   const bg = isDark ? '#080D13' : '#F1F5F9';
   const cardBg = isDark ? '#0D1117' : '#ffffff';
@@ -55,19 +57,20 @@ export function Vehicles() {
   const inputBg = isDark ? '#0D1117' : '#F8FAFC';
   const rowHover = isDark ? '#0D1117' : '#F8FAFC';
 
-  const filtered = VEHICLES.filter(v => {
-    const matchSearch = v.name.toLowerCase().includes(search.toLowerCase()) || v.id.toLowerCase().includes(search.toLowerCase());
+  const filtered = useMemo(() => vehicles.filter(v => {
+    const displayName = `Vehicle ${v.id}`;
+    const matchSearch = displayName.toLowerCase().includes(search.toLowerCase()) || String(v.id).includes(search.toLowerCase());
     const matchType = typeFilter === 'All Types' || v.type === typeFilter;
-    const matchStatus = statusFilter === 'All Status' || v.status === statusFilter.toLowerCase();
+    const matchStatus = statusFilter === 'All Status' || 'active' === statusFilter.toLowerCase();
     return matchSearch && matchType && matchStatus;
-  });
+  }), [vehicles, search, typeFilter, statusFilter]);
 
   const toggleSelect = (id: string) => {
     const s = new Set(selected);
     s.has(id) ? s.delete(id) : s.add(id);
     setSelected(s);
   };
-  const toggleAll = () => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(v => v.id)));
+  const toggleAll = () => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(v => String(v.id))));
 
   const handleSave = async () => {
     setSaving(true);
@@ -77,7 +80,16 @@ export function Vehicles() {
       setSaving(false);
       return;
     }
-    await new Promise(r => setTimeout(r, 1000));
+    await createVehicle({
+      type: formData.type.toLowerCase(),
+      dimensions: {
+        length: Number(formData.length || 0),
+        width: Number(formData.width || 0),
+        height: Number(formData.height || 0),
+      },
+      capacity: Number(formData.maxWeight || 0),
+    });
+    await loadVehicles();
     setSaving(false);
     setShowForm(false);
     setFormData(defaultForm);
@@ -172,36 +184,36 @@ export function Vehicles() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(v => (
-                <tr key={v.id} style={{ borderBottom: `1px solid ${border}` }}
+              {filtered.map((v: any) => (
+                <tr key={String(v.id)} style={{ borderBottom: `1px solid ${border}` }}
                   onMouseEnter={e => (e.currentTarget.style.background = rowHover)}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   className="transition-colors"
                 >
                   <td className="px-4 py-3">
-                    <button onClick={() => toggleSelect(v.id)}>
-                      {selected.has(v.id)
+                    <button onClick={() => toggleSelect(String(v.id))}>
+                      {selected.has(String(v.id))
                         ? <CheckSquare size={15} style={{ color: palette.primary }} />
                         : <Square size={15} style={{ color: text }} />}
                     </button>
                   </td>
-                  <td className="px-4 py-3"><span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: palette.accent }}>{v.id}</span></td>
-                  <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary, fontWeight: 500 }}>{v.name}</td>
+                  <td className="px-4 py-3"><span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: palette.accent }}>V-{String(v.id).padStart(3, '0')}</span></td>
+                  <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary, fontWeight: 500 }}>{`Vehicle ${v.id}`}</td>
                   <td className="px-4 py-3">
                     <span className="flex items-center gap-1.5 rounded-md px-2 py-0.5 w-fit" style={{ background: isDark ? '#1E2A38' : '#F1F5F9', fontSize: '11px', color: text }}>
                       <Truck size={11} />
                       {v.type}
                     </span>
                   </td>
-                  <td className="px-4 py-3" style={{ fontSize: '12px', color: text, fontFamily: 'JetBrains Mono, monospace' }}>{v.dims}</td>
-                  <td className="px-4 py-3" style={{ fontSize: '12px', color: textPrimary }}>{v.maxWeight}</td>
-                  <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary }}>{v.axles}</td>
+                  <td className="px-4 py-3" style={{ fontSize: '12px', color: text, fontFamily: 'JetBrains Mono, monospace' }}>{`${v.dimensions.length ?? '-'} × ${v.dimensions.width ?? '-'} × ${v.dimensions.height ?? '-'}m`}</td>
+                  <td className="px-4 py-3" style={{ fontSize: '12px', color: textPrimary }}>{`${Number(v.capacity).toLocaleString()} kg`}</td>
+                  <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary }}>{'-'}</td>
                   <td className="px-4 py-3">
-                    <OLBadge status={v.status === 'active' ? 'active' : v.status === 'maintenance' ? 'warning' : 'inactive'} label={v.status.charAt(0).toUpperCase() + v.status.slice(1)} />
+                    <OLBadge status={'active'} label={'Active'} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {[{ Icon: Eye, title: 'View', action: () => {} }, { Icon: Edit3, title: 'Edit', action: () => { setEditVehicle(v.id); setFormData({ ...defaultForm, name: v.name, type: v.type }); setShowForm(true); } }, { Icon: Copy, title: 'Duplicate', action: () => toast.success('Vehicle duplicated') }, { Icon: Archive, title: 'Archive', action: () => toast.success('Vehicle archived') }, { Icon: Trash2, title: 'Delete', action: () => setDeleteTarget(v.id), danger: true }].map(({ Icon, title, action, danger }) => (
+                      {[{ Icon: Eye, title: 'View', action: () => {} }, { Icon: Edit3, title: 'Edit', action: () => { setEditVehicle(String(v.id)); setFormData({ ...defaultForm, name: `Vehicle ${v.id}`, type: v.type }); setShowForm(true); } }, { Icon: Copy, title: 'Duplicate', action: () => toast.success('Vehicle duplicated') }, { Icon: Archive, title: 'Archive', action: () => toast.success('Vehicle archived') }, { Icon: Trash2, title: 'Delete', action: () => setDeleteTarget(String(v.id)), danger: true }].map(({ Icon, title, action, danger }) => (
                         <button key={title} onClick={action} title={title} className="p-1.5 rounded-md transition-colors"
                           style={{ color: danger ? '#EF4444' : text }}
                           onMouseEnter={e => (e.currentTarget.style.background = danger ? '#EF444415' : isDark ? '#1E2A38' : '#F1F5F9')}
@@ -250,7 +262,7 @@ export function Vehicles() {
               </FormField>
               <FormField label="Vehicle Type">
                 <select style={{ ...inputStyle, cursor: 'pointer' }} value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}>
-                  {['Flatcar', 'Boxcar', 'Container', 'Hopper', 'Gondola', 'Tank'].map(t => <option key={t}>{t}</option>)}
+                  {['truck', 'trailer', 'van', 'container'].map(t => <option key={t}>{t}</option>)}
                 </select>
               </FormField>
             </div>
