@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -18,15 +20,13 @@ def get_metrics(db: Session = Depends(get_db), current_user=Depends(get_current_
     return success_response([{"id": m.id, "metric_type": m.metric_type.value, "value": m.value, "timestamp": m.timestamp} for m in metrics])
 
 
-@router.get("/jobs")
-def get_jobs(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    require_roles(current_user, {"super_admin"})
-    jobs = SystemMonitoringService(SystemMetricRepository(db)).jobs()
-    return success_response(jobs)
-
-
 @router.get("/errors")
 def get_errors(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     require_roles(current_user, {"super_admin"})
     errors = SystemMonitoringService(SystemMetricRepository(db)).errors()
     return success_response(errors)
+
+
+@router.get("/health")
+def get_health(_: Session = Depends(get_db), __=Depends(get_current_user)):
+    return success_response({"status": "healthy", "timestamp": datetime.utcnow()})
