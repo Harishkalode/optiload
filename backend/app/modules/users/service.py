@@ -1,6 +1,7 @@
 from app.core.utils.errors import AppError
 from app.core.utils.security import hash_password
 from app.modules.audit_logs.service import AuditLogService
+from app.modules.roles.repository import RoleRepository
 from app.modules.users.model import User
 from app.modules.users.repository import UserRepository
 
@@ -13,9 +14,20 @@ class UserService:
     def list_users(self, tenant_organization_id: int | None) -> list[User]:
         return self.repository.list_by_org(tenant_organization_id)
 
+    def _validate_role_assignment(self, role_id: int | None, actor_org_id: int | None) -> None:
+        if role_id is None:
+            return
+        role = RoleRepository(self.repository.db).get_by_id(role_id)
+        if not role:
+            raise AppError("INVALID_ROLE", "Role not found", status_code=400)
+        if role.name == "super_admin" and actor_org_id is not None:
+            raise AppError("FORBIDDEN", "Only system/backend can create super admin", status_code=403)
+
     def create_user(self, payload: dict, actor_id: int, actor_org_id: int | None, ip_address: str) -> User:
         if self.repository.get_by_email(payload["email"]):
             raise AppError("USER_EXISTS", "User email already exists", status_code=409)
+
+        self._validate_role_assignment(payload.get("role_id"), actor_org_id)
 
         user = User(
             organization_id=payload.get("organization_id", actor_org_id),
@@ -40,12 +52,15 @@ class UserService:
         user = self.repository.get_by_id(user_id)
         if not user:
             raise AppError("NOT_FOUND", "User not found", status_code=404)
+        if actor_org_id is not None and user.organization_id != actor_org_id:
+            raise AppError("FORBIDDEN", "Cross-tenant access denied", status_code=403)
+
+        self._validate_role_assignment(payload.get("role_id"), actor_org_id)
 
         for key, value in payload.items():
             if value is not None:
                 setattr(user, key, value)
-        self.repository.db.commit()
-        self.repository.db.refresh(user)
+        self.repository.save(user)
 
         self.audit_log_service.record(
             user_id=actor_id,
@@ -62,6 +77,8 @@ class UserService:
         user = self.repository.get_by_id(user_id)
         if not user:
             raise AppError("NOT_FOUND", "User not found", status_code=404)
+        if actor_org_id is not None and user.organization_id != actor_org_id:
+            raise AppError("FORBIDDEN", "Cross-tenant access denied", status_code=403)
         self.repository.delete(user)
         self.audit_log_service.record(
             user_id=actor_id,

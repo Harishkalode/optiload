@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { DevModeProvider } from './contexts/DevModeContext';
 import { DevModeToggle } from './components/dev/DevModeToggle';
+import { DevModeHeader } from './components/dev/DevModeHeader';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import '../styles/fonts.css';
 
@@ -13,6 +14,7 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <DevModeProvider>
+            <DevModeHeader />
             <RouterProvider router={router} />
             <DevModeToggle />
           </DevModeProvider>
