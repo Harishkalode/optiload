@@ -16,6 +16,7 @@ from app.core.utils.responses import error_response
 from app.modules.audit_logs import model as _audit_model
 from app.modules.auth import model as _auth_model
 from app.modules.loads import model as _loads_model
+from app.modules.load_builder import model as _load_builder_model
 from app.modules.optimization import model as _optimization_model
 from app.modules.organizations import model as _org_model
 from app.modules.permissions import model as _permission_model

@@ -14,8 +14,13 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    payload = decode_access_token(credentials.credentials)
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except Exception as exc:
+        raise AppError("UNAUTHORIZED", "Invalid authentication credentials", status_code=401) from exc
     user_id = payload.get("sub")
+    if isinstance(user_id, str) and user_id.startswith("refresh:"):
+        user_id = user_id.split(":", 1)[1]
     user = db.get(User, int(user_id)) if user_id else None
     if not user:
         raise AppError("UNAUTHORIZED", "Invalid authentication credentials", status_code=401)
