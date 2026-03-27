@@ -1,13 +1,15 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.routes.v1 import api_router
 from app.core.config import settings
 from app.core.database.base import Base
 from app.core.database.session import engine
 from app.core.middlewares.rate_limit import RateLimitMiddleware
+from app.core.middlewares.security_headers import SecurityHeadersMiddleware
 from app.core.utils.responses import error_response
 
 # Import models to register metadata
@@ -25,11 +27,13 @@ from app.modules.vehicles import model as _vehicle_model
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(api_router, prefix=settings.api_prefix)
 
