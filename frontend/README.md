@@ -14,3 +14,8 @@ npm run dev
 
 ## Docker
 Run with root `docker compose up --build` and open `http://localhost:8080`.
+
+## Dependency conflict fix
+If you previously saw `ERESOLVE` around `@react-three/fiber` requiring React 19, this repo pins compatible React-18 versions:
+- `@react-three/fiber@8.17.10`
+- `@react-three/drei@9.120.4`
