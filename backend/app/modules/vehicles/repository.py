@@ -9,7 +9,7 @@ class VehicleRepository:
         self.db = db
 
     def list_by_org(self, organization_id: int) -> list[Vehicle]:
-        return list(self.db.scalars(select(Vehicle).where(Vehicle.organization_id == organization_id)).all())
+        return list(self.db.scalars(select(Vehicle).where(Vehicle.organization_id == organization_id).order_by(Vehicle.id.desc())).all())
 
     def get_by_id(self, vehicle_id: int) -> Vehicle | None:
         return self.db.get(Vehicle, vehicle_id)
@@ -19,3 +19,12 @@ class VehicleRepository:
         self.db.commit()
         self.db.refresh(vehicle)
         return vehicle
+
+    def save(self, vehicle: Vehicle) -> Vehicle:
+        self.db.commit()
+        self.db.refresh(vehicle)
+        return vehicle
+
+    def delete(self, vehicle: Vehicle) -> None:
+        self.db.delete(vehicle)
+        self.db.commit()

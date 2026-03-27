@@ -1,7 +1,10 @@
 from fastapi import APIRouter
 
+from app.modules.api_keys.controller import router as api_keys_router
 from app.modules.audit_logs.controller import router as audit_logs_router
 from app.modules.auth.controller import router as auth_router
+from app.modules.dashboard.controller import router as dashboard_router
+from app.modules.load_builder.controller import router as load_builder_router
 from app.modules.loads.controller import router as loads_router
 from app.modules.optimization.controller import router as optimization_router
 from app.modules.organizations.controller import router as organizations_router
@@ -17,8 +20,11 @@ api_router.include_router(users_router)
 api_router.include_router(roles_router)
 api_router.include_router(permissions_router)
 api_router.include_router(organizations_router)
+api_router.include_router(api_keys_router)
 api_router.include_router(vehicles_router)
 api_router.include_router(loads_router)
+api_router.include_router(load_builder_router)
 api_router.include_router(optimization_router)
+api_router.include_router(dashboard_router)
 api_router.include_router(audit_logs_router)
 api_router.include_router(system_monitoring_router)
