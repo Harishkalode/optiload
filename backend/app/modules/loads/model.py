@@ -1,16 +1,14 @@
 from enum import Enum
 
-from sqlalchemy import Enum as SAEnum, Float, ForeignKey, JSON
+from sqlalchemy import Enum as SAEnum, Float, ForeignKey, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
 
 
 class LoadType(str, Enum):
-    pallet = "pallet"
-    box = "box"
-    loose = "loose"
-    mixed = "mixed"
+    cylinder = "cylinder"
+    cube = "cube"
 
 
 class Load(Base):
@@ -21,3 +19,4 @@ class Load(Base):
     type: Mapped[LoadType] = mapped_column(SAEnum(LoadType), index=True)
     dimensions: Mapped[dict] = mapped_column(JSON)
     weight: Mapped[float] = mapped_column(Float)
+    quantity: Mapped[int] = mapped_column(Integer, default=1)

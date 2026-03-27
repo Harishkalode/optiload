@@ -7,9 +7,7 @@ from app.core.database.base import Base
 
 
 class VehicleType(str, Enum):
-    truck = "truck"
-    trailer = "trailer"
-    van = "van"
+    railcar = "railcar"
     container = "container"
 
 

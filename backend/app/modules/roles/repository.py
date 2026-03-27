@@ -10,16 +10,23 @@ class RoleRepository:
         self.db = db
 
     def list_all(self) -> list[Role]:
-        return list(self.db.scalars(select(Role)).all())
+        return list(self.db.scalars(select(Role).order_by(Role.id.desc())).all())
 
     def get_by_id(self, role_id: int) -> Role | None:
         return self.db.get(Role, role_id)
+
+    def get_by_name_scope(self, name: str, scope: str) -> Role | None:
+        return self.db.scalar(select(Role).where(Role.name == name, Role.scope == scope))
 
     def create(self, role: Role) -> Role:
         self.db.add(role)
         self.db.commit()
         self.db.refresh(role)
         return role
+
+    def delete(self, role: Role) -> None:
+        self.db.delete(role)
+        self.db.commit()
 
     def get_permissions(self, ids: list[int]) -> list[Permission]:
         if not ids:

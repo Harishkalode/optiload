@@ -14,8 +14,13 @@ from app.core.utils.responses import error_response
 
 # Import models to register metadata
 from app.modules.audit_logs import model as _audit_model
+from app.modules.audit_logs.repository import AuditLogRepository
+from app.modules.audit_logs.service import AuditLogService
 from app.modules.auth import model as _auth_model
+from app.modules.auth.repository import AuthRepository
+from app.modules.auth.service import AuthService
 from app.modules.loads import model as _loads_model
+from app.modules.load_builder import model as _load_builder_model
 from app.modules.optimization import model as _optimization_model
 from app.modules.organizations import model as _org_model
 from app.modules.permissions import model as _permission_model
@@ -41,6 +46,13 @@ app.include_router(api_router, prefix=settings.api_prefix)
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    from app.core.database.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        AuthService(AuthRepository(db), AuditLogService(AuditLogRepository(db))).bootstrap_super_admin()
+    finally:
+        db.close()
 
 
 @app.exception_handler(HTTPException)

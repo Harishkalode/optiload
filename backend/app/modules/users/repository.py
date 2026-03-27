@@ -18,10 +18,15 @@ class UserRepository:
         query = select(User)
         if organization_id is not None:
             query = query.where(User.organization_id == organization_id)
-        return list(self.db.scalars(query).all())
+        return list(self.db.scalars(query.order_by(User.id.desc())).all())
 
     def create(self, user: User) -> User:
         self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def save(self, user: User) -> User:
         self.db.commit()
         self.db.refresh(user)
         return user
