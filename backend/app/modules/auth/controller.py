@@ -8,13 +8,19 @@ from app.modules.audit_logs.repository import AuditLogRepository
 from app.modules.audit_logs.service import AuditLogService
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService
-from app.modules.auth.validator import LoginRequest, RefreshRequest
+from app.modules.auth.validator import LoginRequest, RefreshRequest, RegisterRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _service(db: Session):
     return AuthService(AuthRepository(db), AuditLogService(AuditLogRepository(db)))
+
+
+@router.post("/register")
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    result = _service(db).register_admin(payload.model_dump(), request.client.host if request.client else "unknown")
+    return success_response(result)
 
 
 @router.post("/login")
