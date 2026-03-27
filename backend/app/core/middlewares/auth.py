@@ -21,7 +21,6 @@ def get_current_user(
     user_id = payload.get("sub")
     if isinstance(user_id, str) and user_id.startswith("refresh:"):
         raise AppError("UNAUTHORIZED", "Refresh token cannot access protected endpoints", status_code=401)
-
     user = db.get(User, int(user_id)) if user_id else None
     if not user:
         raise AppError("UNAUTHORIZED", "Invalid authentication credentials", status_code=401)
