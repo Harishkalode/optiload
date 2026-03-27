@@ -6,8 +6,6 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes.v1 import api_router
 from app.core.config import settings
-from app.core.database.base import Base
-from app.core.database.session import engine
 from app.core.middlewares.rate_limit import RateLimitMiddleware
 from app.core.middlewares.security_headers import SecurityHeadersMiddleware
 from app.core.utils.responses import error_response
@@ -45,7 +43,6 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 @app.on_event("startup")
 def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
     from app.core.database.session import SessionLocal
 
     db = SessionLocal()

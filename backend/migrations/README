@@ -1,0 +1,5 @@
+Run migrations:
+  alembic upgrade head
+
+Create migration:
+  alembic revision --autogenerate -m "your_migration_name"
