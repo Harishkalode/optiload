@@ -1,37 +1,49 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 interface DevModeContextValue {
   devMode: boolean;
   toggleDevMode: () => void;
+  setDevMode: (value: boolean) => void;
 }
 
-const DevModeContext = createContext<DevModeContextValue>({ devMode: false, toggleDevMode: () => {} });
+const DevModeContext = createContext<DevModeContextValue>({
+  devMode: false,
+  toggleDevMode: () => {},
+  setDevMode: () => {},
+});
 
 export function DevModeProvider({ children }: { children: React.ReactNode }) {
-  const [devMode, setDevMode] = useState(() => {
-    try { return localStorage.getItem('optiload_devmode') === 'true'; } catch { return false; }
+  const [devMode, setDevModeState] = useState(() => {
+    try {
+      return localStorage.getItem('optiload_devmode') === 'true';
+    } catch {
+      return false;
+    }
   });
 
-  const toggleDevMode = () => setDevMode(v => {
-    const next = !v;
-    try { localStorage.setItem('optiload_devmode', String(next)); } catch {}
-    return next;
-  });
+  const setDevMode = (value: boolean) => {
+    setDevModeState(value);
+    try {
+      localStorage.setItem('optiload_devmode', String(value));
+    } catch {
+      // ignore
+    }
+  };
 
-  // Keyboard shortcut: Ctrl+Shift+D
+  const toggleDevMode = () => setDevMode(!devMode);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); toggleDevMode(); }
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        toggleDevMode();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [devMode]);
 
-  return (
-    <DevModeContext.Provider value={{ devMode, toggleDevMode }}>
-      {children}
-    </DevModeContext.Provider>
-  );
+  return <DevModeContext.Provider value={{ devMode, toggleDevMode, setDevMode }}>{children}</DevModeContext.Provider>;
 }
 
 export const useDevMode = () => useContext(DevModeContext);

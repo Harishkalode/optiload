@@ -7,23 +7,24 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { ROLES, type RoleValue } from '../../constants/roles';
 
 interface NavItem {
   icon: any;
   label: string;
   path: string;
   children?: { label: string; path: string; icon: any }[];
-  roles?: string[];
+  roles?: RoleValue[];
 }
 
 const ADMIN_NAV: NavItem[] = [
-  { icon: LayoutGrid, label: 'Dashboard', path: '/' },
+  { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard' },
   { icon: Box, label: 'Optimization Jobs', path: '/jobs' },
   { icon: Truck, label: 'Vehicles', path: '/vehicles' },
   { icon: Package, label: 'Loads', path: '/loads' },
   {
     icon: Users, label: 'Users', path: '/users',
-    roles: ['Organization Owner', 'Admin', 'Sub-Admin'],
+    roles: [ROLES.ADMIN, ROLES.SUB_ADMIN],
     children: [
       { label: 'User Management', path: '/users/management', icon: UserCog },
       { label: 'Roles & Permissions', path: '/users/roles', icon: Shield },
@@ -36,7 +37,7 @@ const ADMIN_NAV: NavItem[] = [
 
 // For lower-privilege roles: show subset
 const BASIC_NAV: NavItem[] = [
-  { icon: LayoutGrid, label: 'Dashboard', path: '/' },
+  { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard' },
   { icon: Box, label: 'Optimization Jobs', path: '/jobs' },
   { icon: Truck, label: 'Vehicles', path: '/vehicles' },
   { icon: Package, label: 'Loads', path: '/loads' },
@@ -44,7 +45,7 @@ const BASIC_NAV: NavItem[] = [
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
-const ADMIN_ROLES = ['Organization Owner', 'Admin', 'Sub-Admin', 'Operations Manager'];
+const ADMIN_ROLES = [ROLES.ADMIN, ROLES.SUB_ADMIN];
 
 export function Sidebar() {
   const { sidebarCollapsed, setSidebarCollapsed, palette, isDark, mobileMenuOpen, setMobileMenuOpen } = useTheme();
@@ -62,7 +63,7 @@ export function Sidebar() {
   const activeBg = isDark ? '#1E2A3A' : '#DBEAFE';
   const subBg = isDark ? '#0A1118' : '#F0F4F8';
 
-  const isAdminLevel = user && ADMIN_ROLES.includes(user.role);
+  const isAdminLevel = !!user && ADMIN_ROLES.includes(user.role);
   const navItems = isAdminLevel ? ADMIN_NAV : BASIC_NAV;
 
   React.useEffect(() => {
