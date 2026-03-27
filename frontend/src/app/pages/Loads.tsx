@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Plus, Grid3X3, List, Package, Eye, Edit3, Copy, Archive, Trash2, ToggleLeft, ToggleRight, AlertTriangle, Filter } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { OLCard } from '../components/ui/OLCard';
@@ -7,15 +7,7 @@ import { OLButton } from '../components/ui/OLButton';
 import { OLModal } from '../components/ui/OLModal';
 import { toast } from 'sonner';
 import { validateLoadForm, type LoadFormErrors } from '../engine/AAREngine';
-
-const LOADS = [
-  { id: 'L-0441', name: 'Steel Coil Batch A', customer: 'MetalWorks Ltd', dims: '2.1 × 1.8 × 1.8m', weight: '12,400 kg', priority: 8, stackable: false, fragile: false, status: 'ready' },
-  { id: 'L-0442', name: 'Automotive Parts Box', customer: 'AutoGroup', dims: '1.2 × 0.8 × 1.0m', weight: '840 kg', priority: 6, stackable: true, fragile: true, status: 'ready' },
-  { id: 'L-0443', name: 'Grain Bulk Unit', customer: 'AgriSupply', dims: '3.0 × 2.4 × 2.0m', weight: '24,000 kg', priority: 9, stackable: false, fragile: false, status: 'assigned' },
-  { id: 'L-0444', name: 'Chemical Drums Set', customer: 'ChemCo', dims: '1.0 × 1.0 × 1.2m', weight: '2,200 kg', priority: 7, stackable: true, fragile: true, status: 'ready' },
-  { id: 'L-0445', name: 'Timber Planks Bundle', customer: 'ForestryInc', dims: '4.0 × 0.6 × 0.5m', weight: '3,600 kg', priority: 4, stackable: true, fragile: false, status: 'pending' },
-  { id: 'L-0446', name: 'Machinery Crate', customer: 'IndustrialMech', dims: '2.4 × 1.6 × 2.0m', weight: '18,000 kg', priority: 10, stackable: false, fragile: true, status: 'ready' },
-];
+import { createLoad, listLoads } from '../services/loadService';
 
 const defaultLoad = { name: '', customer: '', length: '', width: '', height: '', weight: '', priority: 5, stackable: false, fragile: false, rotatable: true, hazmat: false };
 
@@ -30,6 +22,16 @@ export function Loads() {
   const [form, setForm] = useState(defaultLoad);
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<LoadFormErrors>({});
+  const [loads, setLoads] = useState<any[]>([]);
+
+  const loadLoads = async () => {
+    const apiLoads = await listLoads();
+    setLoads(apiLoads.map((l) => ({ ...l, status: 'ready', stackable: false, fragile: false })));
+  };
+
+  useEffect(() => {
+    void loadLoads();
+  }, []);
 
   const text = isDark ? '#94A3B8' : '#64748B';
   const textPrimary = isDark ? '#F1F5F9' : '#0F172A';
@@ -43,11 +45,11 @@ export function Loads() {
     outline: 'none', width: '100%',
   };
 
-  const filtered = LOADS.filter(l =>
-    (search === '' || l.name.toLowerCase().includes(search.toLowerCase()) || l.id.toLowerCase().includes(search.toLowerCase())) &&
-    (statusFilter === 'All' || l.status === statusFilter.toLowerCase()) &&
-    (priorityFilter === 'All' || (priorityFilter === 'High' && l.priority >= 8) || (priorityFilter === 'Medium' && l.priority >= 5 && l.priority < 8) || (priorityFilter === 'Low' && l.priority < 5))
-  );
+  const filtered = useMemo(() => loads.filter((l: any) =>
+    (search === '' || `Load ${l.id}`.toLowerCase().includes(search.toLowerCase()) || String(l.id).includes(search.toLowerCase())) &&
+    (statusFilter === 'All' || 'ready' === statusFilter.toLowerCase()) &&
+    (priorityFilter === 'All' || true)
+  ), [loads, search, statusFilter, priorityFilter]);
 
   const Toggle = ({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
     <div className="flex items-center justify-between py-2">
@@ -68,7 +70,16 @@ export function Loads() {
       return;
     }
     setFormErrors({});
-    await new Promise(r => setTimeout(r, 900));
+    await createLoad({
+      type: 'box',
+      dimensions: {
+        length: Number(form.length || 0),
+        width: Number(form.width || 0),
+        height: Number(form.height || 0),
+      },
+      weight: Number(form.weight || 0),
+    });
+    await loadLoads();
     setSaving(false);
     setShowForm(false);
     toast.success('Load created successfully');
@@ -123,18 +134,18 @@ export function Loads() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(l => (
+                {filtered.map((l: any) => (
                   <tr key={l.id} style={{ borderBottom: `1px solid ${border}` }}
                     onMouseEnter={e => (e.currentTarget.style.background = rowHover)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     className="transition-colors"
                   >
                     <td className="px-4 py-3"><span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: palette.accent }}>{l.id}</span></td>
-                    <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary, fontWeight: 500 }}>{l.name}</td>
-                    <td className="px-4 py-3" style={{ fontSize: '12px', color: text }}>{l.customer}</td>
-                    <td className="px-4 py-3" style={{ fontSize: '11px', color: text, fontFamily: 'JetBrains Mono, monospace' }}>{l.dims}</td>
+                    <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary, fontWeight: 500 }}>{`Load ${l.id}`}</td>
+                    <td className="px-4 py-3" style={{ fontSize: '12px', color: text }}>{'-'}</td>
+                    <td className="px-4 py-3" style={{ fontSize: '11px', color: text, fontFamily: 'JetBrains Mono, monospace' }}>{`${l.dimensions.length ?? '-'} × ${l.dimensions.width ?? '-'} × ${l.dimensions.height ?? '-'}m`}</td>
                     <td className="px-4 py-3" style={{ fontSize: '12px', color: textPrimary }}>{l.weight}</td>
-                    <td className="px-4 py-3"><PriorityBar value={l.priority} /></td>
+                    <td className="px-4 py-3"><PriorityBar value={5} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         {l.stackable && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: '#10B98115', color: '#10B981' }}>Stack</span>}
@@ -149,7 +160,7 @@ export function Loads() {
                         {[Eye, Edit3, Copy, Archive, Trash2].map((Icon, i) => (
                           <button key={i} className="p-1.5 rounded-md transition-colors"
                             style={{ color: i === 4 ? '#EF4444' : text }}
-                            onClick={() => { if (i === 4) setDeleteTarget(l.id); else toast.success('Action completed'); }}
+                            onClick={() => { if (i === 4) setDeleteTarget(String(l.id)); else toast.success('Action completed'); }}
                             onMouseEnter={e => (e.currentTarget.style.background = i === 4 ? '#EF444415' : isDark ? '#1E2A38' : '#F1F5F9')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
@@ -166,7 +177,7 @@ export function Loads() {
         </OLCard>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(l => (
+          {filtered.map((l: any) => (
             <OLCard key={l.id} hover padding="16px">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: palette.primary + '18' }}>
@@ -175,12 +186,12 @@ export function Loads() {
                 <OLBadge status={l.status === 'ready' ? 'success' : l.status === 'assigned' ? 'info' : 'neutral'} label={l.status.charAt(0).toUpperCase() + l.status.slice(1)} />
               </div>
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: palette.accent, marginBottom: 4 }}>{l.id}</div>
-              <div style={{ fontWeight: 600, fontSize: '13px', color: textPrimary, marginBottom: 2 }}>{l.name}</div>
-              <div style={{ fontSize: '11px', color: text, marginBottom: 10 }}>{l.customer}</div>
+              <div style={{ fontWeight: 600, fontSize: '13px', color: textPrimary, marginBottom: 2 }}>{`Load ${l.id}`}</div>
+              <div style={{ fontSize: '11px', color: text, marginBottom: 10 }}>{'-'}</div>
               <div className="space-y-1.5 pt-3" style={{ borderTop: `1px solid ${border}` }}>
                 <div className="flex justify-between"><span style={{ fontSize: '11px', color: text }}>Weight</span><span style={{ fontSize: '11px', color: textPrimary, fontFamily: 'JetBrains Mono, monospace' }}>{l.weight}</span></div>
-                <div className="flex justify-between"><span style={{ fontSize: '11px', color: text }}>Dims</span><span style={{ fontSize: '11px', color: textPrimary, fontFamily: 'JetBrains Mono, monospace' }}>{l.dims}</span></div>
-                <div className="flex justify-between items-center"><span style={{ fontSize: '11px', color: text }}>Priority</span><PriorityBar value={l.priority} /></div>
+                <div className="flex justify-between"><span style={{ fontSize: '11px', color: text }}>Dims</span><span style={{ fontSize: '11px', color: textPrimary, fontFamily: 'JetBrains Mono, monospace' }}>{`${l.dimensions.length ?? '-'} × ${l.dimensions.width ?? '-'} × ${l.dimensions.height ?? '-'}m`}</span></div>
+                <div className="flex justify-between items-center"><span style={{ fontSize: '11px', color: text }}>Priority</span><PriorityBar value={5} /></div>
               </div>
             </OLCard>
           ))}
