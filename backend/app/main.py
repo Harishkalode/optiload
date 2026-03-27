@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.v1 import api_router
 from app.core.config import settings
@@ -22,6 +23,13 @@ from app.modules.users import model as _users_model
 from app.modules.vehicles import model as _vehicle_model
 
 app = FastAPI(title=settings.app_name)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(api_router, prefix=settings.api_prefix)
 

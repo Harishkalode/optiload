@@ -9,3 +9,5 @@
 
   Run `npm run dev` to start the development server.
   
+## Backend connection
+Set `VITE_API_BASE_URL` (default `http://localhost:8000/api/v1`) to connect frontend to FastAPI backend.
