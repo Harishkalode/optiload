@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users, Search, Plus, UserX, UserCheck, Eye,
   CheckCircle2, XCircle, Clock, Shield, Mail,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { createUser, listUsers, updateUser } from '../services/userService';
 
 interface OrgUser {
   id: string;
@@ -18,19 +19,6 @@ interface OrgUser {
   jobsRun: number;
   createdBy: string;
 }
-
-const MOCK_USERS: OrgUser[] = [
-  { id: 'U-001', name: 'Sarah Mitchell', email: 'sarah.mitchell@railcorp.com', role: 'Organization Owner', status: 'active', lastActive: '2 hours ago', mfa: true, jobsRun: 142, createdBy: 'System' },
-  { id: 'U-002', name: 'James Chen', email: 'james.chen@railcorp.com', role: 'Admin', status: 'active', lastActive: '5 hours ago', mfa: true, jobsRun: 67, createdBy: 'Sarah Mitchell' },
-  { id: 'U-003', name: 'Maria Rodriguez', email: 'maria.r@railcorp.com', role: 'Operations Manager', status: 'active', lastActive: '1 day ago', mfa: false, jobsRun: 34, createdBy: 'James Chen' },
-  { id: 'U-004', name: 'David Park', email: 'dpark@railcorp.com', role: 'Rail Planner', status: 'active', lastActive: '3 hours ago', mfa: true, jobsRun: 88, createdBy: 'James Chen' },
-  { id: 'U-005', name: 'Emily Watson', email: 'ewatson@railcorp.com', role: 'Compliance Officer', status: 'active', lastActive: '6 hours ago', mfa: true, jobsRun: 0, createdBy: 'Sarah Mitchell' },
-  { id: 'U-006', name: 'Michael Brown', email: 'mbrown@railcorp.com', role: 'Sub-Admin', status: 'active', lastActive: '2 days ago', mfa: false, jobsRun: 19, createdBy: 'James Chen' },
-  { id: 'U-007', name: 'Lisa Anderson', email: 'landerson@railcorp.com', role: 'Loader Operator', status: 'active', lastActive: '1 day ago', mfa: false, jobsRun: 23, createdBy: 'Michael Brown' },
-  { id: 'U-008', name: 'Robert Kim', email: 'rkim@railcorp.com', role: 'Yard Supervisor', status: 'active', lastActive: '4 days ago', mfa: false, jobsRun: 11, createdBy: 'Michael Brown' },
-  { id: 'U-009', name: 'Jennifer Lee', email: 'jlee@railcorp.com', role: 'Rail Planner', status: 'suspended', lastActive: '2 weeks ago', mfa: true, jobsRun: 14, createdBy: 'James Chen' },
-  { id: 'U-010', name: 'Thomas Wright', email: 'twright@railcorp.com', role: 'Operations Manager', status: 'invited', lastActive: 'Never', mfa: false, jobsRun: 0, createdBy: 'Sarah Mitchell' },
-];
 
 const ROLES_LIST = ['Organization Owner', 'Admin', 'Sub-Admin', 'Operations Manager', 'Rail Planner', 'Compliance Officer', 'Yard Supervisor', 'Loader Operator', 'Viewer'];
 
@@ -58,7 +46,8 @@ export function UserManagement() {
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedUser, setSelectedUser] = useState<OrgUser | null>(null);
-  const [users, setUsers] = useState(MOCK_USERS);
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Rail Planner' });
 
@@ -70,37 +59,63 @@ export function UserManagement() {
   const hoverBg = isDark ? '#1E2A38' : '#F8FAFC';
   const inputBg = isDark ? '#060B10' : '#F8FAFC';
 
-  const filtered = users.filter(u => {
+
+  const mapRoleFromRoleId = (roleId: number): string => {
+    if (roleId === 1) return 'Organization Owner';
+    if (roleId === 2) return 'Admin';
+    if (roleId === 3) return 'Sub-Admin';
+    return 'Viewer';
+  };
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const apiUsers = await listUsers();
+      const mapped: OrgUser[] = apiUsers.map((u) => ({
+        id: String(u.id),
+        name: u.name,
+        email: u.email,
+        role: mapRoleFromRoleId(u.role_id),
+        status: u.status === 'disabled' ? 'suspended' : (u.status as 'active' | 'invited'),
+        lastActive: u.last_login ? new Date(u.last_login).toLocaleString() : 'Never',
+        mfa: u.mfa_enabled,
+        jobsRun: 0,
+        createdBy: 'System',
+      }));
+      setUsers(mapped);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
+  const filtered = useMemo(() => users.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
     const matchRole = filterRole === 'all' || u.role === filterRole;
     const matchStatus = filterStatus === 'all' || u.status === filterStatus;
     return matchSearch && matchRole && matchStatus;
-  });
+  }), [users, search, filterRole, filterStatus]);
 
-  const toggleStatus = (userId: string) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      return { ...u, status: u.status === 'active' ? 'suspended' : 'active' };
-    }));
-    if (selectedUser?.id === userId) {
-      setSelectedUser(prev => prev ? { ...prev, status: prev.status === 'active' ? 'suspended' : 'active' } : null);
-    }
+  const toggleStatus = async (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (!target) return;
+    const nextStatus = target.status === 'active' ? 'disabled' : 'active';
+    await updateUser(Number(userId), { status: nextStatus });
+    await loadUsers();
   };
 
-  const handleAddUser = () => {
-    const u: OrgUser = {
-      id: 'U-' + String(users.length + 1).padStart(3, '0'),
+  const handleAddUser = async () => {
+    await createUser({
       name: newUser.name,
       email: newUser.email,
-      role: newUser.role,
-      status: 'invited',
-      lastActive: 'Never',
-      mfa: false,
-      jobsRun: 0,
-      createdBy: 'Sarah Mitchell',
-    };
-    setUsers(prev => [...prev, u]);
+      password: 'TempPassword123!',
+      role_id: 3,
+    });
+    await loadUsers();
     setShowAddUser(false);
     setNewUser({ name: '', email: '', role: 'Rail Planner' });
   };
@@ -123,6 +138,7 @@ export function UserManagement() {
             <p style={{ fontSize: 13, color: text, marginTop: 2 }}>
               {users.filter(u => u.status === 'active').length} active · {users.filter(u => u.status === 'suspended').length} suspended · {users.filter(u => u.status === 'invited').length} invited
             </p>
+            {loading ? <p style={{ fontSize: 12, color: text, marginTop: 6 }}>Loading users from backend...</p> : null}
           </div>
           <div className="flex items-center gap-3">
             <button
