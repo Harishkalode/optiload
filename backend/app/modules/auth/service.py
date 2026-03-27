@@ -8,12 +8,16 @@ from app.core.utils.security import create_access_token, decode_access_token, ha
 from app.modules.audit_logs.service import AuditLogService
 from app.modules.auth.model import ApiKey
 from app.modules.auth.repository import AuthRepository
+<<<<<<< codex/design-backend-for-application-features-4eh9m7
 from app.modules.loads.model import Load, LoadType
 from app.modules.organizations.model import Organization, OrganizationPlanType, OrganizationStatus
 from app.modules.permissions.model import Permission
 from app.modules.roles.model import Role, RoleScope
 from app.modules.users.model import User, UserStatus
 from app.modules.vehicles.model import Vehicle, VehicleType
+=======
+from app.modules.users.model import User
+>>>>>>> main
 
 
 class AuthService:
@@ -34,6 +38,7 @@ class AuthService:
 
         user.last_login = datetime.utcnow()
         self.repository.db.commit()
+<<<<<<< codex/design-backend-for-application-features-4eh9m7
         access_token, refresh_token = self._token_pair(user)
 
         self.audit_log_service.record(
@@ -45,10 +50,17 @@ class AuthService:
             metadata_json={"email": email},
             ip_address=ip_address,
         )
+=======
+
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_access_token(f"refresh:{user.id}")
+        self.audit_log_service.record(user_id=user.id, organization_id=user.organization_id, action="auth.login", resource="user", resource_id=str(user.id), metadata_json={"email": email}, ip_address=ip_address)
+>>>>>>> main
 
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
+<<<<<<< codex/design-backend-for-application-features-4eh9m7
             "user": {
                 "id": user.id,
                 "name": user.name,
@@ -78,6 +90,10 @@ class AuthService:
             "name": user.name,
             "email": user.email,
             "status": user.status.value,
+=======
+            "user": {"id": user.id, "name": user.name, "email": user.email, "status": user.status.value, "mfa_enabled": user.mfa_enabled},
+            "role": user.role.name if user.role else None,
+>>>>>>> main
             "organization_id": user.organization_id,
             "role": user.role.name if user.role else None,
         }
@@ -191,6 +207,7 @@ class AuthService:
             },
         }
 
+<<<<<<< codex/design-backend-for-application-features-4eh9m7
     def bootstrap_super_admin(self) -> None:
         db = self.repository.db
         existing = db.scalar(select(User).join(Role).where(Role.name == "super_admin"))
@@ -227,3 +244,19 @@ class AuthService:
             metadata_json={"email": user.email},
             ip_address="system",
         )
+=======
+    def refresh(self, token: str) -> dict:
+        if not token:
+            raise AppError("INVALID_TOKEN", "Refresh token is required", status_code=401)
+        return {"access_token": create_access_token(token)}
+
+    def me(self, user: User) -> dict:
+        return {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "status": user.status.value,
+            "organization_id": user.organization_id,
+            "role": user.role.name if user.role else None,
+        }
+>>>>>>> main
