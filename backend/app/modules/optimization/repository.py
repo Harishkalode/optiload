@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.optimization.model import Optimization
@@ -15,3 +16,6 @@ class OptimizationRepository:
 
     def get_by_id(self, optimization_id: int) -> Optimization | None:
         return self.db.get(Optimization, optimization_id)
+
+    def list_by_org(self, organization_id: int) -> list[Optimization]:
+        return list(self.db.scalars(select(Optimization).where(Optimization.organization_id == organization_id).order_by(Optimization.id.desc())).all())
