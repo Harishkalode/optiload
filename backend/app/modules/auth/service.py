@@ -1,8 +1,5 @@
 from datetime import datetime
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-
 from app.core.utils.errors import AppError
 from app.core.utils.security import create_access_token, decode_access_token, hash_password, verify_password
 from app.modules.audit_logs.service import AuditLogService
@@ -14,6 +11,8 @@ from app.modules.permissions.model import Permission
 from app.modules.roles.model import Role, RoleScope
 from app.modules.users.model import User, UserStatus
 from app.modules.vehicles.model import Vehicle, VehicleType
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 
 class AuthService:
@@ -136,7 +135,9 @@ class AuthService:
                 "viewer": self._get_or_create_org_role("viewer"),
             }
             roles["admin"].permissions = list(permissions.values())
-            roles["sub_admin"].permissions = [permissions["users.manage"], permissions["loads.manage"], permissions["vehicles.manage"], permissions["optimization.run"], permissions["audit.read"]]
+            roles["sub_admin"].permissions = [permissions["users.manage"], permissions["loads.manage"],
+                                              permissions["vehicles.manage"], permissions["optimization.run"],
+                                              permissions["audit.read"]]
             roles["operator"].permissions = [permissions["loads.manage"], permissions["optimization.run"]]
             roles["viewer"].permissions = [permissions["audit.read"]]
 
@@ -151,9 +152,13 @@ class AuthService:
             db.add(user)
             db.flush()
 
-            db.add(Vehicle(organization_id=organization.id, type=VehicleType.container, dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000}, capacity=24000))
-            db.add(Load(organization_id=organization.id, type=LoadType.cube, dimensions={"length": 100, "width": 100, "height": 100}, weight=10, quantity=1))
-            db.add(ApiKey(organization_id=organization.id, key_hash=hash_password(f"seed-{organization.id}"), permissions_json={"scope": "default"}))
+            db.add(Vehicle(organization_id=organization.id, type=VehicleType.container,
+                           dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
+                           capacity=24000))
+            db.add(Load(organization_id=organization.id, type=LoadType.cube,
+                        dimensions={"length": 100, "width": 100, "height": 100}, weight=10, quantity=1))
+            db.add(ApiKey(organization_id=organization.id, key_hash=hash_password(f"seed-{organization.id}"),
+                          permissions_json={"scope": "default"}))
 
             db.commit()
             db.refresh(user)
@@ -178,7 +183,8 @@ class AuthService:
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "user": {"id": user.id, "role": self._role_label(user.role.name if user.role else "admin"), "organization_id": user.organization_id},
+            "user": {"id": user.id, "role": self._role_label(user.role.name if user.role else "admin"),
+                     "organization_id": user.organization_id},
         }
 
     def bootstrap_super_admin(self) -> None:

@@ -6,7 +6,8 @@ from app.modules.optimization.repository import OptimizationRepository
 
 
 class DashboardService:
-    def __init__(self, load_repo: LoadRepository, optimization_repo: OptimizationRepository, audit_repo: AuditLogRepository):
+    def __init__(self, load_repo: LoadRepository, optimization_repo: OptimizationRepository,
+                 audit_repo: AuditLogRepository):
         self.load_repo = load_repo
         self.optimization_repo = optimization_repo
         self.audit_repo = audit_repo
@@ -17,7 +18,8 @@ class DashboardService:
         return {
             "total_loads": total_loads,
             "optimizations": len(optimizations),
-            "avg_efficiency": round(sum((o.efficiency_score or 0) for o in optimizations) / len(optimizations), 3) if optimizations else 0,
+            "avg_efficiency": round(sum((o.efficiency_score or 0) for o in optimizations) / len(optimizations),
+                                    3) if optimizations else 0,
         }
 
     def recent_loads(self, organization_id: int) -> list[dict]:

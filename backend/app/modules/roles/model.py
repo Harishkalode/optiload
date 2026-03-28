@@ -1,9 +1,8 @@
 from enum import Enum
 
+from app.core.database.base import Base
 from sqlalchemy import Enum as SAEnum, ForeignKey, String, Table, Column, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database.base import Base
 
 
 class RoleScope(str, Enum):

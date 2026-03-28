@@ -1,10 +1,9 @@
 from datetime import datetime
 from enum import Enum
 
+from app.core.database.base import Base
 from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.database.base import Base
 
 
 class UserStatus(str, Enum):

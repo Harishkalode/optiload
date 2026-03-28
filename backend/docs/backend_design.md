@@ -1,6 +1,7 @@
 # OptiLoad Backend Blueprint (Phased, Exhaustive)
 
 ## PHASE 1 — UI → Feature Extraction
+
 - **Auth**: login, refresh, me, logout, error states, remember-me-compatible token flow.
 - **Dashboard**: KPI summary, recent loads, activity feed.
 - **User Management**: paginated list, search, role/status filters, create/update/delete, patch role/status.
@@ -15,13 +16,16 @@
 - **System Monitoring**: metrics, errors, health.
 
 ## PHASE 2 — Exhaustive API Inventory
+
 ### Auth
+
 - `POST /auth/login`
 - `POST /auth/logout`
 - `GET /auth/me`
 - `POST /auth/refresh`
 
 ### Users
+
 - `GET /users` (pagination + search + role/status)
 - `GET /users/{id}`
 - `POST /users`
@@ -31,6 +35,7 @@
 - `PATCH /users/{id}/role`
 
 ### Roles / Permissions
+
 - `GET /roles`
 - `POST /roles`
 - `PUT /roles/{id}`
@@ -40,6 +45,7 @@
 - `PUT /roles/{id}/permissions`
 
 ### Organization / API Keys
+
 - `GET /organization`
 - `PUT /organization`
 - `GET /organization/plan`
@@ -48,10 +54,12 @@
 - `DELETE /api-keys/{id}`
 
 ### Vehicles / Loads
+
 - `GET /vehicles`, `GET /vehicles/{id}`, `POST /vehicles`, `PUT /vehicles/{id}`, `DELETE /vehicles/{id}`
 - `GET /loads`, `GET /loads/{id}`, `POST /loads`, `PUT /loads/{id}`, `DELETE /loads/{id}`
 
 ### Load Builder / Optimization
+
 - `POST /load-builder/session`
 - `POST /load-builder/add-item`
 - `DELETE /load-builder/remove-item`
@@ -63,6 +71,7 @@
 - `GET /optimization/history`
 
 ### Dashboard / Audit / System
+
 - `GET /dashboard/summary`
 - `GET /dashboard/recent-loads`
 - `GET /dashboard/activity`
@@ -73,6 +82,7 @@
 - `GET /system/health`
 
 ## PHASE 3 — Database Design
+
 - `users(id, organization_id, name, email unique, password_hash, role_id, status, last_login, created_at)`
 - `roles(id, name, scope, description)`
 - `permissions(id, name, category)`
@@ -88,21 +98,26 @@
 - `system_metrics(id, metric_type, value, timestamp)`
 
 ## PHASE 4 — Architecture Design
+
 - Monolithic modular FastAPI:
-  - `app/modules/<domain>/{model,repository,service,controller,validator}.py`
-  - `app/core/{database,middlewares,utils}`
+    - `app/modules/<domain>/{model,repository,service,controller,validator}.py`
+    - `app/core/{database,middlewares,utils}`
 - Cross-cutting middleware:
-  - authentication (JWT)
-  - role checks (RBAC)
-  - tenant isolation enforcement
-  - rate limiting + security headers
+    - authentication (JWT)
+    - role checks (RBAC)
+    - tenant isolation enforcement
+    - rate limiting + security headers
 
 ## PHASE 5 — API Contract Rules
+
 All APIs return envelope:
+
 ```json
 { "success": true, "data": {}, "error": null }
 ```
+
 Validation + error standards:
+
 - `409`: duplicate entities (email, role scope/name)
 - `400`: invalid dimensions, invalid enum, overweight load
 - `401`: unauthorized/invalid token
@@ -111,18 +126,20 @@ Validation + error standards:
 - `422`: optimization failure due to invalid setup
 
 Representative contracts:
+
 - `POST /vehicles`: `{type, dimensions:{length,width,height,max_weight}, capacity}` → `{id}`
 - `POST /loads`: `{type, dimensions:{length,width,height}, weight, quantity}` → `{id}`
 - `POST /optimization/run`: `{vehicle_id, load_ids[]}` → `{id,status}`
 
 ## PHASE 6 — Implementation Notes
+
 - Controller: transport-only (validation + mapping)
 - Service: all business rules
 - Repository: persistence abstraction
 - Edge cases handled:
-  - duplicate user/role
-  - invalid dimensions
-  - overweight loads vs vehicle max weight
-  - unauthorized token
-  - cross-tenant access
-  - optimization setup failures
+    - duplicate user/role
+    - invalid dimensions
+    - overweight loads vs vehicle max weight
+    - unauthorized token
+    - cross-tenant access
+    - optimization setup failures

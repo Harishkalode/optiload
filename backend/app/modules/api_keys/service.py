@@ -15,7 +15,8 @@ class ApiKeyService:
 
     def create_key(self, organization_id: int, permissions_json: dict) -> tuple[ApiKey, str]:
         raw_key = f"ok_{secrets.token_urlsafe(32)}"
-        api_key = ApiKey(organization_id=organization_id, key_hash=hash_password(raw_key), permissions_json=permissions_json)
+        api_key = ApiKey(organization_id=organization_id, key_hash=hash_password(raw_key),
+                         permissions_json=permissions_json)
         created = self.repository.create(api_key)
         return created, raw_key
 

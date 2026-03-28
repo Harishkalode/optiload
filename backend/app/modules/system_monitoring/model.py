@@ -1,10 +1,9 @@
 from datetime import datetime
 from enum import Enum
 
+from app.core.database.base import Base
 from sqlalchemy import DateTime, Enum as SAEnum, Float
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database.base import Base
 
 
 class MetricType(str, Enum):
