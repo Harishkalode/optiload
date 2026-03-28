@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from 'react-router';
 import { useEffect } from 'react';
 import { SuperAdminSidebar } from './SuperAdminSidebar';
 import { useAuth } from '../../contexts/AuthContext';
+import { ROLES } from '../../constants/roles';
 import { Toaster } from 'sonner';
 
 export function SuperAdminLayout() {
@@ -13,12 +14,12 @@ export function SuperAdminLayout() {
       navigate('/login');
       return;
     }
-    if (user?.role !== 'Super Admin') {
-      navigate('/');
+    if (user?.role !== ROLES.SUPER_ADMIN) {
+      navigate('/dashboard');
     }
   }, [isAuthenticated, user, navigate]);
 
-  if (!isAuthenticated || user?.role !== 'Super Admin') return null;
+  if (!isAuthenticated || user?.role !== ROLES.SUPER_ADMIN) return null;
 
   return (
     <div
