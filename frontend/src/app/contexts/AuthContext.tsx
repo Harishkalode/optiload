@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { loginRequest, registerRequest } from '../services/authService';
+import { loginRequest, logoutRequest, meRequest, registerRequest } from '../services/authService';
 import { ROLE_REDIRECT, ROLES, type RoleValue, isValidRole, normalizeRole } from '../constants/roles';
+
+const SESSION_FLAG_KEY = 'optiload_session_active';
 
 export interface User {
   id: string;
@@ -29,14 +31,17 @@ interface RegisterPayload {
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<string>;
   register: (payload: RegisterPayload) => Promise<string>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 function loadState(): AuthState {
   try {
     const userRaw = localStorage.getItem('optiload_user');
     const token = localStorage.getItem('optiload_access_token');
-    if (!userRaw || !token) return { user: null, role: null, token: null, isAuthenticated: false };
+    const sessionActive = sessionStorage.getItem(SESSION_FLAG_KEY) === '1';
+    if (!userRaw || (!token && !sessionActive)) {
+      return { user: null, role: null, token: null, isAuthenticated: false };
+    }
 
     const parsed = JSON.parse(userRaw) as User;
     const normalizedRole = normalizeRole(parsed.role);
@@ -47,6 +52,7 @@ function loadState(): AuthState {
   } catch {
     localStorage.removeItem('optiload_user');
     localStorage.removeItem('optiload_access_token');
+    sessionStorage.removeItem(SESSION_FLAG_KEY);
     return { user: null, role: null, token: null, isAuthenticated: false };
   }
 }
@@ -56,7 +62,62 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(loadState);
 
-  const setAuthenticatedState = (token: string, incomingUser: { id: number; name?: string; email?: string; role: string; organization_id: number | null; mfa_enabled?: boolean }) => {
+  useEffect(() => {
+    let cancelled = false;
+    const syncFromServer = async () => {
+      const token = localStorage.getItem('optiload_access_token');
+      const sessionActive = sessionStorage.getItem(SESSION_FLAG_KEY) === '1';
+      if (token || !sessionActive) return;
+      try {
+        const me = await meRequest();
+        if (cancelled) return;
+        const normalizedRole = normalizeRole(me.role);
+        if (!normalizedRole || !isValidRole(normalizedRole)) {
+          sessionStorage.removeItem(SESSION_FLAG_KEY);
+          localStorage.removeItem('optiload_user');
+          setState({ user: null, role: null, token: null, isAuthenticated: false });
+          return;
+        }
+        const user: User = {
+          id: String(me.id),
+          name: me.name,
+          email: me.email,
+          role: normalizedRole,
+          organizationId: me.organization_id,
+          mfaEnabled: me.mfa_enabled,
+        };
+        setState({
+          user,
+          role: normalizedRole,
+          token: null,
+          isAuthenticated: true,
+        });
+        localStorage.setItem('optiload_user', JSON.stringify(user));
+      } catch {
+        if (!cancelled) {
+          sessionStorage.removeItem(SESSION_FLAG_KEY);
+          localStorage.removeItem('optiload_user');
+          setState({ user: null, role: null, token: null, isAuthenticated: false });
+        }
+      }
+    };
+    void syncFromServer();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setAuthenticatedState = (
+    incomingUser: {
+      id: number;
+      name?: string;
+      email?: string;
+      role: string;
+      organization_id: number | null;
+      mfa_enabled?: boolean;
+    },
+    tokens?: { access?: string | null },
+  ) => {
     const normalizedRole = normalizeRole(incomingUser.role);
     if (!normalizedRole || !isValidRole(normalizedRole)) {
       throw new Error('Invalid role');
@@ -71,24 +132,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mfaEnabled: incomingUser.mfa_enabled,
     };
 
+    const access = tokens?.access;
+    if (access) {
+      localStorage.setItem('optiload_access_token', access);
+    } else {
+      localStorage.removeItem('optiload_access_token');
+    }
+    sessionStorage.setItem(SESSION_FLAG_KEY, '1');
+
     const nextState: AuthState = {
       user,
       role: normalizedRole,
-      token,
+      token: access ?? null,
       isAuthenticated: true,
     };
 
     setState(nextState);
     localStorage.setItem('optiload_user', JSON.stringify(user));
-    localStorage.setItem('optiload_access_token', token);
 
     return ROLE_REDIRECT[normalizedRole] ?? '/login';
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      /* session may already be invalid */
+    }
     setState({ user: null, role: null, token: null, isAuthenticated: false });
     localStorage.removeItem('optiload_user');
     localStorage.removeItem('optiload_access_token');
+    sessionStorage.removeItem(SESSION_FLAG_KEY);
   };
 
   const login = async (email: string, password: string) => {
@@ -96,11 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const loginUser = response.user;
 
     if (!loginUser || !loginUser.role) {
-      logout();
+      await logout();
       throw new Error('Invalid user payload');
     }
 
-    return setAuthenticatedState(response.access_token, loginUser);
+    return setAuthenticatedState(loginUser, { access: response.access_token ?? null });
   };
 
   const register = async (payload: RegisterPayload) => {
@@ -108,11 +182,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const user = response.user;
 
     if (!user || !user.role) {
-      logout();
+      await logout();
       throw new Error('Invalid registration payload');
     }
 
-    return setAuthenticatedState(response.access_token, user);
+    return setAuthenticatedState(user, { access: response.access_token ?? null });
   };
 
   const value = useMemo(() => ({ ...state, login, register, logout }), [state]);

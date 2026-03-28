@@ -243,7 +243,7 @@ export function OrganizationsManagement() {
                   key={tab}
                   onClick={() => setDetailTab(tab)}
                   className="flex-1 py-2.5 transition-all"
-                  style={{ fontSize: 12, fontWeight: 500, color: detailTab === tab ? SA.cyan : SA.text, borderBottom: `2px solid ${detailTab === tab ? SA.cyan : 'transparent'}`, background: 'none', border: 'none', borderBottom: `2px solid ${detailTab === tab ? SA.cyan : 'transparent'}`, cursor: 'pointer', textTransform: 'capitalize' }}
+                  style={{ fontSize: 12, fontWeight: 500, color: detailTab === tab ? SA.cyan : SA.text, background: 'none', border: 'none', borderBottom: `2px solid ${detailTab === tab ? SA.cyan : 'transparent'}`, cursor: 'pointer', textTransform: 'capitalize' }}
                 >
                   {tab}
                 </button>

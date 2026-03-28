@@ -2,6 +2,7 @@ export const ROLES = {
   SUPER_ADMIN: 'SUPER_ADMIN',
   ADMIN: 'ADMIN',
   SUB_ADMIN: 'SUB_ADMIN',
+  OPERATOR: 'OPERATOR',
   VIEWER: 'VIEWER',
 } as const;
 
@@ -11,6 +12,7 @@ export const ROLE_REDIRECT: Record<RoleValue, string> = {
   [ROLES.SUPER_ADMIN]: '/super-admin/dashboard',
   [ROLES.ADMIN]: '/dashboard',
   [ROLES.SUB_ADMIN]: '/dashboard',
+  [ROLES.OPERATOR]: '/dashboard',
   [ROLES.VIEWER]: '/dashboard',
 };
 
@@ -21,6 +23,7 @@ const ROLE_ALIASES: Record<string, RoleValue> = {
   ORGANIZATION_OWNER: ROLES.ADMIN,
   SUB_ADMIN: ROLES.SUB_ADMIN,
   SUBADMIN: ROLES.SUB_ADMIN,
+  OPERATOR: ROLES.OPERATOR,
   VIEWER: ROLES.VIEWER,
 };
 

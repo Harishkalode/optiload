@@ -12,14 +12,48 @@ export interface ApiEnvelope<T> {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
+let refreshInFlight: Promise<boolean> | null = null;
+
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('optiload_access_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function refreshSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const payload = (await response.json()) as ApiEnvelope<{
+        access_token?: string;
+        refresh_token?: string;
+      }>;
+      if (!response.ok || !payload.success || !payload.data) {
+        return false;
+      }
+      const access = payload.data.access_token;
+      if (access) {
+        localStorage.setItem('optiload_access_token', access);
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+export async function apiRequest<T>(path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(),
@@ -33,6 +67,19 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   } catch {
     if (!response.ok) {
       throw new Error(`Request failed: ${response.status}`);
+    }
+  }
+
+  if (
+    response.status === 401 &&
+    !isRetry &&
+    path !== '/auth/login' &&
+    path !== '/auth/register' &&
+    path !== '/auth/refresh'
+  ) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      return apiRequest<T>(path, init, true);
     }
   }
 

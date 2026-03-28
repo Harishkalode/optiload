@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 
 from app.core.config import settings
 
@@ -23,14 +25,68 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return False
 
 
+def _base_claims(minutes_from_now: float | None = None, days_from_now: float | None = None) -> dict:
+    now = datetime.now(timezone.utc)
+    if minutes_from_now is not None:
+        exp = now + timedelta(minutes=minutes_from_now)
+    elif days_from_now is not None:
+        exp = now + timedelta(days=days_from_now)
+    else:
+        exp = now + timedelta(minutes=settings.jwt_access_token_minutes)
+    return {
+        "exp": exp,
+        "iat": now,
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+    }
+
+
 def create_access_token(subject: str, role: str | None = None, organization_id: int | None = None) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_access_token_minutes)
-    payload = {"sub": subject, "exp": expires, "role": role, "organization_id": organization_id}
+    claims = _base_claims(minutes_from_now=settings.jwt_access_token_minutes)
+    payload = {
+        **claims,
+        "sub": subject,
+        "token_use": "access",
+        "role": role,
+        "organization_id": organization_id,
+    }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> dict:
+def create_refresh_token(subject: str, jti: str) -> str:
+    claims = _base_claims(days_from_now=settings.jwt_refresh_token_days)
+    payload = {**claims, "sub": subject, "token_use": "refresh", "jti": jti}
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def new_refresh_jti() -> str:
+    return str(uuid4())
+
+
+def decode_token(token: str, *, expected_use: str) -> dict:
     try:
-        return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-    except JWTError as exc:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            audience=settings.jwt_audience,
+            issuer=settings.jwt_issuer,
+            options={"require": ["exp", "sub", "token_use"]},
+        )
+    except PyJWTError as exc:
         raise ValueError("Invalid token") from exc
+    if payload.get("token_use") != expected_use:
+        raise ValueError("Invalid token type")
+    return payload
+
+
+def decode_access_token(token: str) -> dict:
+    return decode_token(token, expected_use="access")
+
+
+def decode_refresh_token(token: str) -> dict:
+    payload = decode_token(token, expected_use="refresh")
+    jti = payload.get("jti")
+    if not jti or not isinstance(jti, str):
+        raise ValueError("Invalid refresh token")
+    return payload

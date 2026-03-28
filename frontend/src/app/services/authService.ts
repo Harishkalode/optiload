@@ -10,7 +10,7 @@ export interface AuthUserPayload {
 }
 
 export interface AuthResponse {
-  access_token: string;
+  access_token?: string;
   refresh_token?: string;
   user: AuthUserPayload;
 }
@@ -34,4 +34,12 @@ export async function registerRequest(payload: RegisterRequestPayload): Promise<
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function meRequest(): Promise<AuthUserPayload> {
+  return apiRequest<AuthUserPayload>('/auth/me', { method: 'GET' });
+}
+
+export async function logoutRequest(): Promise<void> {
+  await apiRequest<{ logged_out: boolean }>('/auth/logout', { method: 'POST' });
 }

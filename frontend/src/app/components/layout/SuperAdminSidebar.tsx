@@ -138,7 +138,12 @@ export function SuperAdminSidebar() {
               </div>
             </div>
             <button
-              onClick={() => { logout(); navigate('/login'); }}
+              onClick={() => {
+                void (async () => {
+                  await logout();
+                  navigate('/login');
+                })();
+              }}
               className="w-full flex items-center justify-center gap-2 rounded py-1.5 transition-all"
               style={{ fontSize: '11px', color: '#EF4444', border: `1px solid ${SA_BORDER}`, background: 'transparent', cursor: 'pointer' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}

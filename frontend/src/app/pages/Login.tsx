@@ -102,6 +102,11 @@ export function Login() {
               </button>
             </div>
             {mode === 'signup' && <input style={inputStyle} type="password" value={form.confirm} onChange={e => setForm({ ...form, confirm: e.target.value })} placeholder="Confirm Password" required />}
+            {mode === 'signup' && (
+              <p className="text-xs" style={{ color: text, lineHeight: 1.5 }}>
+                Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character.
+              </p>
+            )}
 
             {mode === 'login' && (
               <label className="flex items-center gap-2.5 cursor-pointer">

@@ -1,5 +1,5 @@
 from app.modules.permissions.model import Permission
-from app.modules.roles.model import Role
+from app.modules.roles.model import Role, RoleScope
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,11 @@ class RoleRepository:
 
     def list_all(self) -> list[Role]:
         return list(self.db.scalars(select(Role).order_by(Role.id.desc())).all())
+
+    def list_org_scoped(self) -> list[Role]:
+        return list(
+            self.db.scalars(select(Role).where(Role.scope == RoleScope.org).order_by(Role.id.desc())).all()
+        )
 
     def get_by_id(self, role_id: int) -> Role | None:
         return self.db.get(Role, role_id)

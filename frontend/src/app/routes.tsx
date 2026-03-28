@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AppLayout } from './components/layout/AppLayout';
@@ -31,12 +31,18 @@ import { ApiUsage } from './pages/super-admin/ApiUsage';
 import { FeatureControl } from './pages/super-admin/FeatureControl';
 import { SuperAdminSettings } from './pages/super-admin/SuperAdminSettings';
 
+const devOnlyRoutes: RouteObject[] = import.meta.env.DEV
+  ? [
+      { path: '/dev/integration-map', Component: IntegrationMap },
+      { path: '/dev/api-docs', Component: ApiDocs },
+    ]
+  : [];
+
 export const router = createBrowserRouter([
   { path: '/login', Component: Login },
   { path: '/create-account', Component: Login },
   { path: '/unauthorized', Component: Unauthorized },
-  { path: '/dev/integration-map', Component: IntegrationMap },
-  { path: '/dev/api-docs', Component: ApiDocs },
+  ...devOnlyRoutes,
   {
     path: '/super-admin',
     Component: () => (
@@ -59,7 +65,7 @@ export const router = createBrowserRouter([
   {
     path: '/',
     Component: () => (
-      <ProtectedRoute roles={[ROLES.ADMIN, ROLES.SUB_ADMIN, ROLES.VIEWER]}>
+      <ProtectedRoute roles={[ROLES.ADMIN, ROLES.SUB_ADMIN, ROLES.OPERATOR, ROLES.VIEWER]}>
         <AppLayout />
       </ProtectedRoute>
     ),

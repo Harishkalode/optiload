@@ -4,7 +4,7 @@ Importing this module registers all SQLAlchemy models on Base.metadata.
 """
 
 from app.modules.audit_logs.model import AuditLog
-from app.modules.auth.model import ApiKey
+from app.modules.auth.model import ApiKey, RefreshToken
 from app.modules.load_builder.model import LoadSession, LoadSessionItem
 from app.modules.loads.model import Load
 from app.modules.optimization.model import Optimization
@@ -28,6 +28,7 @@ __all__ = [
     'AuditLog',
     'SystemMetric',
     'ApiKey',
+    'RefreshToken',
     'UserPermissionOverride',
     'role_permissions',
 ]

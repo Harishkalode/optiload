@@ -274,7 +274,12 @@ export function Sidebar() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { logout(); navigate('/login'); }}
+                  onClick={() => {
+                    void (async () => {
+                      await logout();
+                      navigate('/login');
+                    })();
+                  }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', paddingLeft: '8px', paddingRight: '8px', paddingTop: '6px', paddingBottom: '6px', borderRadius: '4px', fontSize: '11px', color: '#EF4444', border: `1px solid ${border}`, background: 'transparent', cursor: 'pointer' }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#FEE2E2')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}

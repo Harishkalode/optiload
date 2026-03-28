@@ -1,7 +1,4 @@
-import time
-from collections import defaultdict, deque
-
-from app.core.config import settings
+from app.core.rate_limit.backends import create_rate_limit_checker
 from app.core.utils.responses import error_response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -11,19 +8,18 @@ from starlette.responses import JSONResponse
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
-        self.requests: dict[str, deque[float]] = defaultdict(deque)
+        self._checker = create_rate_limit_checker()
 
     async def dispatch(self, request: Request, call_next):
+        from app.core.config import settings
+
         ip = request.client.host if request.client else "unknown"
-        now = time.time()
-        window = 60
-        bucket = self.requests[ip]
+        login_path = f"{settings.api_prefix.rstrip('/')}/auth/login"
+        is_login = request.url.path.rstrip("/") == login_path.rstrip("/") and request.method == "POST"
 
-        while bucket and now - bucket[0] > window:
-            bucket.popleft()
+        decision = await self._checker.check(ip=ip, is_login=is_login)
+        if not decision.allowed:
+            message = "Too many login attempts" if is_login else "Too many requests"
+            return JSONResponse(status_code=429, content=error_response("RATE_LIMITED", message))
 
-        if len(bucket) >= settings.rate_limit_per_minute:
-            return JSONResponse(status_code=429, content=error_response("RATE_LIMITED", "Too many requests"))
-
-        bucket.append(now)
         return await call_next(request)

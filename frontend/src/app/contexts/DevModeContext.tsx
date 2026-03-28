@@ -33,6 +33,7 @@ export function DevModeProvider({ children }: { children: React.ReactNode }) {
   const toggleDevMode = () => setDevMode(!devMode);
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
         e.preventDefault();

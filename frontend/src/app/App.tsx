@@ -14,9 +14,9 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <DevModeProvider>
-            <DevModeHeader />
+            {import.meta.env.DEV ? <DevModeHeader /> : null}
             <RouterProvider router={router} />
-            <DevModeToggle />
+            {import.meta.env.DEV ? <DevModeToggle /> : null}
           </DevModeProvider>
         </AuthProvider>
       </ThemeProvider>

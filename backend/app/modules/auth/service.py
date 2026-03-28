@@ -1,10 +1,19 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
 
+from app.core.config import settings
+from app.core.security.password_policy import validate_password_strength
 from app.core.utils.errors import AppError
-from app.core.utils.security import create_access_token, decode_access_token, hash_password, verify_password
+from app.core.utils.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    hash_password,
+    new_refresh_jti,
+    verify_password,
+)
 from app.modules.audit_logs.service import AuditLogService
 from app.modules.auth.model import ApiKey
 from app.modules.auth.repository import AuthRepository
@@ -25,20 +34,26 @@ class AuthService:
     def _role_label(role_name: str | None) -> str | None:
         return role_name.upper() if role_name else None
 
-    def _token_pair(self, user: User) -> tuple[str, str]:
+    def _issue_token_pair(self, user: User) -> tuple[str, str]:
         role_name = user.role.name if user.role else None
+        jti = new_refresh_jti()
+        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_days)
+        self.repository.create_refresh_token_row(user_id=user.id, jti=jti, expires_at=expires_at)
         access_token = create_access_token(str(user.id), role=role_name, organization_id=user.organization_id)
-        refresh_token = create_access_token(f"refresh:{user.id}", role=role_name, organization_id=user.organization_id)
+        refresh_token = create_refresh_token(str(user.id), jti)
+        self.repository.db.commit()
         return access_token, refresh_token
 
     def login(self, email: str, password: str, ip_address: str) -> dict:
         user = self.repository.get_by_email(email)
         if not user or not verify_password(password, user.password_hash):
             raise AppError("INVALID_CREDENTIALS", "Invalid email or password", status_code=401)
+        if user.status != UserStatus.active:
+            raise AppError("ACCOUNT_DISABLED", "This account is not active", status_code=403)
 
         user.last_login = datetime.utcnow()
         self.repository.db.commit()
-        access_token, refresh_token = self._token_pair(user)
+        access_token, refresh_token = self._issue_token_pair(user)
 
         self.audit_log_service.record(
             user_id=user.id,
@@ -65,16 +80,60 @@ class AuthService:
     def refresh(self, token: str) -> dict:
         if not token:
             raise AppError("INVALID_TOKEN", "Refresh token is required", status_code=401)
-        payload = decode_access_token(token)
-        subject = payload.get("sub", "")
-        if not isinstance(subject, str) or not subject.startswith("refresh:"):
+        try:
+            payload = decode_refresh_token(token)
+        except ValueError:
             raise AppError("INVALID_TOKEN", "Invalid refresh token", status_code=401)
-        user_id = subject.split(":", 1)[1]
-        user = self.repository.get_by_id(int(user_id))
-        if not user:
+        jti = str(payload["jti"])
+        row = self.repository.get_refresh_token_by_jti(jti)
+        now = datetime.now(timezone.utc)
+        if row and row.revoked_at is not None:
+            victim = self.repository.get_by_id(row.user_id)
+            self.repository.revoke_all_refresh_tokens_for_user(row.user_id)
+            self.repository.db.commit()
+            self.audit_log_service.record(
+                user_id=row.user_id,
+                organization_id=victim.organization_id if victim else None,
+                action="auth.refresh_token_reuse_detected",
+                resource="user",
+                resource_id=str(row.user_id),
+                metadata_json={"jti": jti},
+                ip_address="internal",
+            )
             raise AppError("INVALID_TOKEN", "Invalid refresh token", status_code=401)
-        access_token, _ = self._token_pair(user)
-        return {"access_token": access_token}
+        if not row or row.expires_at <= now:
+            raise AppError("INVALID_TOKEN", "Invalid refresh token", status_code=401)
+        user = self.repository.get_by_id(row.user_id)
+        if not user or user.status != UserStatus.active:
+            raise AppError("INVALID_TOKEN", "Invalid refresh token", status_code=401)
+
+        self.repository.revoke_refresh_token(jti)
+        access_token, refresh_token = self._issue_token_pair(user)
+
+        self.audit_log_service.record(
+            user_id=user.id,
+            organization_id=user.organization_id,
+            action="auth.token_rotated",
+            resource="user",
+            resource_id=str(user.id),
+            metadata_json={},
+            ip_address="internal",
+        )
+
+        return {"access_token": access_token, "refresh_token": refresh_token}
+
+    def logout(self, user: User) -> None:
+        self.repository.revoke_all_refresh_tokens_for_user(user.id)
+        self.repository.db.commit()
+        self.audit_log_service.record(
+            user_id=user.id,
+            organization_id=user.organization_id,
+            action="auth.logout",
+            resource="user",
+            resource_id=str(user.id),
+            metadata_json={},
+            ip_address="internal",
+        )
 
     def me(self, user: User) -> dict:
         return {
@@ -107,6 +166,11 @@ class AuthService:
         return role
 
     def register_admin(self, payload: dict, ip_address: str) -> dict:
+        if not settings.allow_public_registration:
+            raise AppError("REGISTRATION_DISABLED", "Public registration is disabled", status_code=403)
+
+        validate_password_strength(payload["password"])
+
         if self.repository.get_by_email(payload["email"]):
             raise AppError("USER_EXISTS", "User email already exists", status_code=409)
 
@@ -136,7 +200,13 @@ class AuthService:
                 "viewer": self._get_or_create_org_role("viewer"),
             }
             roles["admin"].permissions = list(permissions.values())
-            roles["sub_admin"].permissions = [permissions["users.manage"], permissions["loads.manage"], permissions["vehicles.manage"], permissions["optimization.run"], permissions["audit.read"]]
+            roles["sub_admin"].permissions = [
+                permissions["users.manage"],
+                permissions["loads.manage"],
+                permissions["vehicles.manage"],
+                permissions["optimization.run"],
+                permissions["audit.read"],
+            ]
             roles["operator"].permissions = [permissions["loads.manage"], permissions["optimization.run"]]
             roles["viewer"].permissions = [permissions["audit.read"]]
 
@@ -151,9 +221,30 @@ class AuthService:
             db.add(user)
             db.flush()
 
-            db.add(Vehicle(organization_id=organization.id, type=VehicleType.container, dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000}, capacity=24000))
-            db.add(Load(organization_id=organization.id, type=LoadType.cube, dimensions={"length": 100, "width": 100, "height": 100}, weight=10, quantity=1))
-            db.add(ApiKey(organization_id=organization.id, key_hash=hash_password(f"seed-{organization.id}"), permissions_json={"scope": "default"}))
+            db.add(
+                Vehicle(
+                    organization_id=organization.id,
+                    type=VehicleType.container,
+                    dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
+                    capacity=24000,
+                )
+            )
+            db.add(
+                Load(
+                    organization_id=organization.id,
+                    type=LoadType.cube,
+                    dimensions={"length": 100, "width": 100, "height": 100},
+                    weight=10,
+                    quantity=1,
+                )
+            )
+            db.add(
+                ApiKey(
+                    organization_id=organization.id,
+                    key_hash=hash_password(f"seed-{organization.id}"),
+                    permissions_json={"scope": "default"},
+                )
+            )
 
             db.commit()
             db.refresh(user)
@@ -174,29 +265,40 @@ class AuthService:
             ip_address=ip_address,
         )
 
-        access_token, refresh_token = self._token_pair(user)
+        access_token, refresh_token = self._issue_token_pair(user)
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "user": {"id": user.id, "role": self._role_label(user.role.name if user.role else "admin"), "organization_id": user.organization_id},
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "role": self._role_label(user.role.name if user.role else "admin"),
+                "organization_id": user.organization_id,
+            },
         }
 
     def _bootstrap_tables_ready(self) -> bool:
         bind = self.repository.db.get_bind()
         inspector = inspect(bind)
-        required_tables = {'users', 'roles', 'audit_logs'}
+        required_tables = {"users", "roles", "audit_logs"}
         return required_tables.issubset(set(inspector.get_table_names()))
 
     def bootstrap_super_admin(self) -> None:
+        if not settings.bootstrap_super_admin_enabled:
+            return
+        email = (settings.bootstrap_super_admin_email or "").strip()
+        password = settings.bootstrap_super_admin_password
+        if not email or not password:
+            return
+
         db = self.repository.db
         if not self._bootstrap_tables_ready():
-            # Migrations not applied yet; skip bootstrap to avoid startup failure.
             return
         existing = db.scalar(select(User).join(Role).where(Role.name == "super_admin"))
         if existing:
             return
-        existing_email = db.scalar(select(User).where(User.email == "harish@optiload.com"))
-        if existing_email:
+        if db.scalar(select(User).where(User.email == email)):
             return
 
         role = db.scalar(select(Role).where(Role.name == "super_admin", Role.scope == RoleScope.global_scope))
@@ -205,11 +307,13 @@ class AuthService:
             db.add(role)
             db.flush()
 
+        validate_password_strength(password)
+
         user = User(
             organization_id=None,
-            name="Harish",
-            email="harish@optiload.com",
-            password_hash=hash_password("Harish@123"),
+            name=settings.bootstrap_super_admin_name,
+            email=email,
+            password_hash=hash_password(password),
             role_id=role.id,
             status=UserStatus.active,
         )
