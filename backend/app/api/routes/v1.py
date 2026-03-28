@@ -6,7 +6,10 @@ from app.modules.auth.controller import router as auth_router
 from app.modules.dashboard.controller import router as dashboard_router
 from app.modules.load_builder.controller import router as load_builder_router
 from app.modules.loads.controller import router as loads_router
+from app.modules.meta.controller import router as meta_router
+from app.modules.notifications.controller import router as notifications_router
 from app.modules.optimization.controller import router as optimization_router
+from app.modules.reports.controller import router as reports_router
 from app.modules.organizations.controller import router as organizations_router
 from app.modules.permissions.controller import router as permissions_router
 from app.modules.roles.controller import router as roles_router
@@ -25,6 +28,9 @@ api_router.include_router(vehicles_router)
 api_router.include_router(loads_router)
 api_router.include_router(load_builder_router)
 api_router.include_router(optimization_router)
+api_router.include_router(notifications_router)
+api_router.include_router(reports_router)
+api_router.include_router(meta_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(audit_logs_router)
 api_router.include_router(system_monitoring_router)

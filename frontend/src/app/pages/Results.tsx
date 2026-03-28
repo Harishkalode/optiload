@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   RotateCcw, Zap, Save, Download, RefreshCw,
   AlertTriangle, X, ChevronDown, Undo2,
@@ -15,6 +15,7 @@ import type { ShockSimulationConfig, StressMetrics } from '../components/results
 import type { LoadExplanation } from '../components/results/ExplainabilityPanel';
 import type { ScenarioData } from '../components/results/ScenarioComparisonPanel';
 import { toast } from 'sonner';
+import { fetchOptimizationResult, fetchOptimizationHistory } from '../services/domainApi';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   runAARValidation, DEFAULT_CAR, validateDragPosition,
@@ -35,10 +36,7 @@ const INITIAL_LOADS: Load3D[] = [
   { id:'L-0450', name:'Paper Rolls Stack',        weight:5800,  volume:6.00,  fragile:false, priority:6,  customer:'PaperWorld SA',   compatScore:93, stackGroup:'A', rotationAllowed:true,  x:17.2, y:0,    z:0.3, w:2.2, h:2.0, d:1.5, color:'#A855F7', hasViolation:false },
 ];
 
-const TREND_DATA = [
-  {t:'OPT-86',v:74},{t:'OPT-87',v:81},{t:'OPT-88',v:79},{t:'OPT-89',v:85},
-  {t:'OPT-90',v:88},{t:'OPT-91',v:87},{t:'OPT-92',v:91},
-];
+const EMPTY_TREND: { t: string; v: number }[] = [];
 
 // ── COMPUTE FUNCTIONS ───────────────────────────────────────────────────────
 function computeCoG(loads: Load3D[]) {
@@ -244,6 +242,9 @@ function BottomBar({
 export function Results() {
   const { isDark, palette } = useTheme();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [apiEfficiency, setApiEfficiency] = useState<number | null>(null);
+  const [trendData, setTrendData] = useState<{ t: string; v: number }[]>(EMPTY_TREND);
 
   const [loads, setLoads]             = useState<Load3D[]>(INITIAL_LOADS);
   const [selectedLoad, setSelectedLoad] = useState<string | null>(null);
@@ -272,6 +273,32 @@ export function Results() {
 
   const bd  = isDark ? '#1E2A38' : '#E2E8F0';
 
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      fetchOptimizationResult(Number(id))
+        .then(r => {
+          if (r.efficiency_score != null) setApiEfficiency(r.efficiency_score * 100);
+        })
+        .catch(() => undefined);
+    } else {
+      setApiEfficiency(null);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    fetchOptimizationHistory()
+      .then(rows => {
+        setTrendData(
+          rows
+            .slice(0, 14)
+            .reverse()
+            .map(r => ({ t: `OPT-${r.id}`, v: (r.efficiency_score ?? 0) * 100 })),
+        );
+      })
+      .catch(() => setTrendData(EMPTY_TREND));
+  }, []);
+
   // ── AAR ENGINE ──────────────────────────────────────────────────────────
   const engineResult: EngineOutput = useMemo(
     () => runAARValidation(DEFAULT_CAR, toEngineLoads(loads)),
@@ -280,7 +307,7 @@ export function Results() {
 
   // Computed values from engine
   const cogPosition = useMemo(() => computeCoG(loads), [loads]);
-  const efficiency = engineResult.packingEfficiency;
+  const efficiency = apiEfficiency ?? engineResult.packingEfficiency;
   const stabilityIdx = useMemo(() => {
     const xDev = Math.abs(cogPosition.x - 10) / 10;
     const zDev = Math.abs(cogPosition.z - 1.6) / 1.6;
@@ -683,7 +710,7 @@ export function Results() {
           efficiency={efficiency}
           stabilityIdx={stabilityIdx}
           engineResult={engineResult}
-          trendData={TREND_DATA}
+          trendData={trendData.length ? trendData : [{ t: 'local', v: engineResult.packingEfficiency }]}
           onEditLoad={handleEditLoad}
           onDuplicateLoad={handleDuplicateLoad}
           onRemoveLoad={handleRemoveLoad}

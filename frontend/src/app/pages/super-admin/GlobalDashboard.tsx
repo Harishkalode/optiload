@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { fetchOrganizations, fetchUsersGlobal, fetchSystemMetrics, fetchSystemActivities, fetchOptimizationHistory } from '../../services/domainApi';
 import {
   Building2, Users, Cpu, AlertTriangle, TrendingUp,
   Activity, Server, CheckCircle2, XCircle, Clock,
@@ -101,11 +102,85 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export function GlobalDashboard() {
-  const [tick, setTick] = useState(0);
+  const [plat, setPlat] = useState({
+    orgs: 0,
+    users: 0,
+    metrics: [] as { id: number; metric_type: string; value: number; timestamp: string }[],
+    activities: [] as { id: number; user_id: number; organization_id: number | null; action: string; timestamp: string }[],
+    opts: [] as { id: number; status: string; efficiency_score: number | null }[],
+  });
+
   useEffect(() => {
-    const t = setInterval(() => setTick(v => v + 1), 3000);
-    return () => clearInterval(t);
+    let c = false;
+    async function run() {
+      try {
+        const [orgs, users, metrics, activities, hist] = await Promise.all([
+          fetchOrganizations(),
+          fetchUsersGlobal(1, 1),
+          fetchSystemMetrics(),
+          fetchSystemActivities(),
+          fetchOptimizationHistory(),
+        ]);
+        if (!c) {
+          setPlat({
+            orgs: orgs.length,
+            users: users.total,
+            metrics,
+            activities,
+            opts: hist.slice(0, 12),
+          });
+        }
+      } catch {
+        /* non-super users see empty */
+      }
+    }
+    run();
+    const t = setInterval(run, 12000);
+    return () => {
+      c = true;
+      clearInterval(t);
+    };
   }, []);
+
+  const LIVE_FEED_API = useMemo(
+    () =>
+      plat.activities.slice(0, 12).map((a, i) => ({
+        id: a.id,
+        user: `User ${a.user_id}`,
+        org: a.organization_id != null ? `Org ${a.organization_id}` : 'Platform',
+        action: a.action,
+        time: new Date(a.timestamp).toLocaleTimeString(),
+        type: a.action.includes('fail') ? 'security' : 'job',
+      })),
+    [plat.activities],
+  );
+
+  const OPT_JOBS_API = useMemo(
+    () =>
+      plat.opts.map(o => ({
+        id: `OPT-${o.id}`,
+        org: '—',
+        status: o.status === 'completed' ? 'completed' : o.status === 'failed' ? 'failed' : 'running',
+        progress: o.status === 'completed' ? 100 : o.status === 'failed' ? 0 : 50,
+        vehicles: 1,
+        loads: 0,
+      })),
+    [plat.opts],
+  );
+
+  const KPI_CARDS_DYN = useMemo(() => {
+    const mreq = plat.metrics.filter(m => m.metric_type === 'request_count').slice(-20);
+    const trendM = mreq.length ? mreq.map((x, i) => ({ t: `${i}m`, v: x.value })) : API_DATA;
+    const errM = plat.metrics.filter(m => m.metric_type === 'error_count').slice(-20);
+    const trendE = errM.length ? errM.map((x, i) => ({ t: `${i}m`, v: x.value })) : ERROR_DATA;
+    return [
+      { label: 'Total Organizations', value: String(plat.orgs), sub: '/organizations', icon: Building2, color: SA.cyan, trend: makeTimeSeries(Math.max(plat.orgs, 1), 2) },
+      { label: 'Users (total)', value: String(plat.users), sub: '/users?scope=global', icon: Users, color: SA.blue, trend: makeTimeSeries(Math.max(plat.users, 1), 20) },
+      { label: 'Recent optimizations', value: String(plat.opts.length), sub: '/optimization/history', icon: Cpu, color: SA.purple, trend: makeTimeSeries(plat.opts.length || 1, 3) },
+      { label: 'API req metric', value: mreq.length ? String(Math.round(mreq[mreq.length - 1].value)) : '—', sub: '/system/metrics', icon: Activity, color: SA.green, trend: trendM },
+      { label: 'Error metric', value: errM.length ? String(errM[errM.length - 1].value) : '—', sub: '/system/metrics', icon: AlertTriangle, color: SA.amber, trend: trendE },
+    ];
+  }, [plat]);
 
   return (
     <div className="p-6 space-y-6" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -135,7 +210,7 @@ export function GlobalDashboard() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {KPI_CARDS.map((kpi, i) => (
+        {KPI_CARDS_DYN.map((kpi, i) => (
           <motion.div
             key={kpi.label}
             initial={{ opacity: 0, y: 16 }}
@@ -175,7 +250,7 @@ export function GlobalDashboard() {
             <span style={{ fontSize: 11, color: SA.text }}>Real-time</span>
           </div>
           <div className="overflow-y-auto" style={{ maxHeight: 380 }}>
-            {LIVE_FEED.map((item, i) => (
+            {(LIVE_FEED_API.length ? LIVE_FEED_API : LIVE_FEED).map((item, i) => (
               <div
                 key={item.id}
                 className="flex gap-3 px-4 py-3 transition-all"
@@ -255,10 +330,12 @@ export function GlobalDashboard() {
               <Zap size={14} style={{ color: SA.purple }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: SA.textPrimary }}>Optimization Jobs</span>
             </div>
-            <span style={{ fontSize: 11, color: SA.text }}>{OPT_JOBS.filter(j => j.status === 'running').length} running</span>
+            <span style={{ fontSize: 11, color: SA.text }}>
+              {(OPT_JOBS_API.length ? OPT_JOBS_API : OPT_JOBS).filter(j => j.status === 'running').length} running
+            </span>
           </div>
           <div className="overflow-y-auto" style={{ maxHeight: 340 }}>
-            {OPT_JOBS.map(job => (
+            {(OPT_JOBS_API.length ? OPT_JOBS_API : OPT_JOBS).map(job => (
               <div key={job.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${SA.border}20` }}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">

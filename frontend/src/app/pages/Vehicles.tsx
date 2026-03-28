@@ -13,8 +13,8 @@ import { OLModal } from '../components/ui/OLModal';
 import { toast } from 'sonner';
 import { validateVehicleForm, type VehicleFormErrors } from '../engine/AAREngine';
 import { createVehicle, listVehicles } from '../services/vehicleService';
+import { fetchVehicleTypes } from '../services/domainApi';
 
-const VEHICLE_TYPES = ['All Types', 'truck', 'trailer', 'van', 'container'];
 const STATUS_OPTS = ['All Status', 'Active', 'Maintenance', 'Inactive'];
 
 interface VehicleFormData {
@@ -22,7 +22,7 @@ interface VehicleFormData {
   maxWeight: string; axles: string; hazmat: boolean; fragile: boolean; refrigerated: boolean;
 }
 
-const defaultForm: VehicleFormData = { name: '', type: 'truck', length: '', width: '', height: '', maxWeight: '', axles: '4', hazmat: false, fragile: false, refrigerated: false };
+const defaultForm: VehicleFormData = { name: '', type: 'container', length: '', width: '', height: '', maxWeight: '', axles: '4', hazmat: false, fragile: false, refrigerated: false };
 
 export function Vehicles() {
   const { isDark, palette } = useTheme();
@@ -39,6 +39,7 @@ export function Vehicles() {
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<VehicleFormErrors>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const [vehicleTypeOpts, setVehicleTypeOpts] = useState<{ value: string; label: string }[]>([]);
 
   const loadVehicles = async () => {
     const apiVehicles = await listVehicles();
@@ -47,7 +48,10 @@ export function Vehicles() {
 
   useEffect(() => {
     void loadVehicles();
+    void fetchVehicleTypes().then(r => setVehicleTypeOpts(r.items)).catch(() => setVehicleTypeOpts([]));
   }, []);
+
+  const typeSelectOptions = useMemo(() => ['All Types', ...vehicleTypeOpts.map(o => o.value)], [vehicleTypeOpts]);
 
   const bg = isDark ? '#080D13' : '#F1F5F9';
   const cardBg = isDark ? '#0D1117' : '#ffffff';
@@ -139,7 +143,7 @@ export function Vehicles() {
             style={{ ...inputStyle, paddingLeft: 36 }} />
         </div>
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: 'auto', cursor: 'pointer' }}>
-          {VEHICLE_TYPES.map(t => <option key={t}>{t}</option>)}
+          {typeSelectOptions.map(t => <option key={t} value={t}>{t === 'All Types' ? t : vehicleTypeOpts.find(o => o.value === t)?.label ?? t}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 'auto', cursor: 'pointer' }}>
           {STATUS_OPTS.map(s => <option key={s}>{s}</option>)}

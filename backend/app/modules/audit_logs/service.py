@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.modules.audit_logs.model import AuditLog
 from app.modules.audit_logs.repository import AuditLogRepository
 
@@ -8,6 +10,25 @@ class AuditLogService:
 
     def list_logs(self, organization_id: int | None) -> list[AuditLog]:
         return self.repository.list_by_org(organization_id)
+
+    def list_logs_filtered(
+        self,
+        organization_id: int | None,
+        *,
+        user_id: int | None = None,
+        action: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        limit: int = 500,
+    ) -> list[AuditLog]:
+        return self.repository.list_filtered(
+            organization_id,
+            user_id=user_id,
+            action=action,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+        )
 
     def record(
             self,

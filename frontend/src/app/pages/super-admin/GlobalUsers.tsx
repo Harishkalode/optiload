@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { fetchUsersGlobal, fetchOrganizations } from '../../services/domainApi';
 import {
   Users, Search, Filter, Ban, RefreshCw, Eye, X,
   Building2, Shield, Clock, Activity, AlertTriangle,
@@ -26,21 +27,6 @@ interface GlobalUser {
   jobs: number;
 }
 
-const ALL_USERS: GlobalUser[] = [
-  { id: 'U-001', name: 'Sarah Mitchell', email: 'sarah@railcorp.com', role: 'Organization Owner', org: 'RailCorp Inc.', orgId: 'ORG-001', status: 'active', lastLogin: '2h ago', mfa: true, jobs: 142 },
-  { id: 'U-002', name: 'James Chen', email: 'james@logiTrans.com', role: 'Admin', org: 'LogiTrans Partners', orgId: 'ORG-002', status: 'active', lastLogin: '5h ago', mfa: true, jobs: 67 },
-  { id: 'U-003', name: 'Ana Patel', email: 'ana@freightco.com', role: 'Organization Owner', org: 'FreightCo Global', orgId: 'ORG-003', status: 'active', lastLogin: '1d ago', mfa: true, jobs: 289 },
-  { id: 'U-004', name: 'Robert Kim', email: 'rkim@midwestrail.com', role: 'Admin', org: 'MidWest Rail', orgId: 'ORG-004', status: 'active', lastLogin: '3h ago', mfa: false, jobs: 24 },
-  { id: 'U-005', name: 'Emily Watson', email: 'ewatson@nationalrail.gov', role: 'Organization Owner', org: 'National Rail Authority', orgId: 'ORG-005', status: 'active', lastLogin: '6h ago', mfa: true, jobs: 418 },
-  { id: 'U-006', name: 'Mark Torres', email: 'mark@coastal.com', role: 'Organization Owner', org: 'Coastal Logistics', orgId: 'ORG-006', status: 'suspended', lastLogin: '3w ago', mfa: false, jobs: 31 },
-  { id: 'U-007', name: 'David Park', email: 'dpark@railcorp.com', role: 'Rail Planner', org: 'RailCorp Inc.', orgId: 'ORG-001', status: 'active', lastLogin: '30m ago', mfa: true, jobs: 88 },
-  { id: 'U-008', name: 'Jennifer Lee', email: 'jlee@railcorp.com', role: 'Rail Planner', org: 'RailCorp Inc.', orgId: 'ORG-001', status: 'suspended', lastLogin: '2w ago', mfa: true, jobs: 19 },
-  { id: 'U-009', name: 'Lisa Anderson', email: 'lisa@alpine.com', role: 'Admin', org: 'Alpine Freight', orgId: 'ORG-007', status: 'active', lastLogin: '2h ago', mfa: false, jobs: 12 },
-  { id: 'U-010', name: 'Michael Chen', email: 'mchen@pacific.com', role: 'Operations Manager', org: 'Pacific Rail Systems', orgId: 'ORG-008', status: 'active', lastLogin: '4h ago', mfa: true, jobs: 76 },
-  { id: 'U-011', name: 'Sandra White', email: 'swhite@freightco.com', role: 'Compliance Officer', org: 'FreightCo Global', orgId: 'ORG-003', status: 'active', lastLogin: '8h ago', mfa: true, jobs: 0 },
-  { id: 'U-012', name: 'Tom Wright', email: 'twright@nationalrail.gov', role: 'Loader Operator', org: 'National Rail Authority', orgId: 'ORG-005', status: 'invited', lastLogin: 'Never', mfa: false, jobs: 0 },
-];
-
 const ROLE_COLORS: Record<string, string> = {
   'Organization Owner': SA.purple,
   'Admin': SA.blue,
@@ -60,14 +46,51 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function GlobalUsers() {
+  const [allUsers, setAllUsers] = useState<GlobalUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterOrg, setFilterOrg] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selected, setSelected] = useState<GlobalUser | null>(null);
 
-  const orgs = Array.from(new Set(ALL_USERS.map(u => u.org)));
+  useEffect(() => {
+    let c = false;
+    (async () => {
+      setLoading(true);
+      setLoadErr(null);
+      try {
+        const [orgsRaw, page] = await Promise.all([fetchOrganizations(), fetchUsersGlobal(1, 500)]);
+        if (c) return;
+        const names = new Map(orgsRaw.map(o => [o.id, o.name]));
+        setAllUsers(
+          page.items.map(u => ({
+            id: `U-${u.id}`,
+            name: u.name,
+            email: u.email,
+            role: `Role #${u.role_id}`,
+            org: u.organization_id != null ? names.get(u.organization_id) ?? `Org ${u.organization_id}` : 'Platform',
+            orgId: u.organization_id != null ? `ORG-${u.organization_id}` : '—',
+            status: u.status === 'disabled' ? 'suspended' : u.status === 'invited' ? 'invited' : 'active',
+            lastLogin: u.last_login ? new Date(u.last_login).toLocaleString() : 'Never',
+            mfa: u.mfa_enabled,
+            jobs: 0,
+          })),
+        );
+      } catch (e) {
+        if (!c) setLoadErr(e instanceof Error ? e.message : 'Failed to load users');
+      } finally {
+        if (!c) setLoading(false);
+      }
+    })();
+    return () => {
+      c = true;
+    };
+  }, []);
 
-  const filtered = ALL_USERS.filter(u => {
+  const orgs = useMemo(() => Array.from(new Set(allUsers.map(u => u.org))), [allUsers]);
+
+  const filtered = allUsers.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       u.role.toLowerCase().includes(search.toLowerCase());
@@ -79,6 +102,11 @@ export function GlobalUsers() {
   return (
     <div className="flex h-full" style={{ fontFamily: 'Inter, sans-serif' }}>
       <div className="flex-1 p-6 overflow-auto">
+        {loadErr && (
+          <div className="mb-4 rounded-lg px-4 py-3" style={{ background: SA.red + '12', border: `1px solid ${SA.red}40`, color: SA.red, fontSize: 13 }}>
+            {loadErr}
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -86,14 +114,14 @@ export function GlobalUsers() {
               Global Users
             </h1>
             <p style={{ fontSize: 13, color: SA.text, marginTop: 2 }}>
-              All users across {orgs.length} organizations — {ALL_USERS.length} total
+              {loading ? 'Loading…' : `GET /users?scope=global — ${allUsers.length} users across ${orgs.length} orgs`}
             </p>
           </div>
           <div className="flex gap-2">
             {[
-              { label: 'Active', count: ALL_USERS.filter(u => u.status === 'active').length, color: SA.green },
-              { label: 'Suspended', count: ALL_USERS.filter(u => u.status === 'suspended').length, color: SA.red },
-              { label: 'Invited', count: ALL_USERS.filter(u => u.status === 'invited').length, color: SA.amber },
+              { label: 'Active', count: allUsers.filter(u => u.status === 'active').length, color: SA.green },
+              { label: 'Suspended', count: allUsers.filter(u => u.status === 'suspended').length, color: SA.red },
+              { label: 'Invited', count: allUsers.filter(u => u.status === 'invited').length, color: SA.amber },
             ].map(s => (
               <div key={s.label} className="rounded-lg px-3 py-1.5" style={{ background: SA.card, border: `1px solid ${SA.border}` }}>
                 <span style={{ fontSize: 11, color: SA.text }}>{s.label}: </span>

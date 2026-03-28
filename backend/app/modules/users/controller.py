@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
+from app.core.middlewares.role import require_roles
 from app.core.middlewares.tenant import get_tenant_organization_id
 from app.core.utils.errors import AppError
 from app.core.utils.responses import success_response
@@ -20,8 +21,24 @@ def _service(db: Session) -> UserService:
 
 
 @router.get("")
-def list_users(page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=100), search: str | None = None, role_id: int | None = None, status: str | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    users = _service(db).list_users(get_tenant_organization_id(current_user))
+def list_users(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: str | None = None,
+    role_id: int | None = None,
+    status: str | None = None,
+    scope: str | None = Query(default=None, description="Use global for platform-wide listing (super_admin only)"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if scope == "global":
+        require_roles(current_user, {"super_admin"})
+        tenant_id = None
+    else:
+        tenant_id = get_tenant_organization_id(current_user)
+        if tenant_id is None and not current_user.is_super_admin:
+            raise AppError("ORG_REQUIRED", "organization context is required")
+    users = _service(db).list_users(tenant_id)
     if search:
         term = search.lower()
         users = [u for u in users if term in u.name.lower() or term in u.email.lower()]

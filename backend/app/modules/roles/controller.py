@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
-from app.core.security.authorization import AppPermission, require_permission
+from app.core.security.authorization import AppPermission, require_permission, user_has_permission
 from app.core.utils.errors import AppError
 from app.core.utils.responses import success_response
 from app.modules.roles.repository import RoleRepository
@@ -23,8 +23,16 @@ def _roles_manage_user(db: Session = Depends(get_db), user: User = Depends(get_c
     return user
 
 
+def _roles_list_user(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> User:
+    if user.is_super_admin:
+        return user
+    if user_has_permission(db, user, AppPermission.USERS_MANAGE) or user_has_permission(db, user, AppPermission.ROLES_MANAGE):
+        return user
+    raise AppError("FORBIDDEN", "You do not have permission to list roles", status_code=403)
+
+
 @router.get("")
-def list_roles(db: Session = Depends(get_db), user: User = Depends(_roles_manage_user)):
+def list_roles(db: Session = Depends(get_db), user: User = Depends(_roles_list_user)):
     roles = _service(db).list_roles_for_actor(user)
     return success_response(
         [

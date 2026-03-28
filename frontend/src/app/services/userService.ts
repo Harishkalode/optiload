@@ -21,7 +21,8 @@ export interface CreateUserPayload {
 }
 
 export async function listUsers(): Promise<ApiUser[]> {
-  return apiRequest<ApiUser[]>('/users');
+  const res = await apiRequest<{ items: ApiUser[]; total: number; page: number; page_size: number }>('/users');
+  return res.items;
 }
 
 export async function createUser(payload: CreateUserPayload): Promise<{ id: number }> {

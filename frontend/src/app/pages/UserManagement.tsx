@@ -7,6 +7,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { createUser, listUsers, updateUser } from '../services/userService';
+import { fetchRoles } from '../services/domainApi';
 
 interface OrgUser {
   id: string;
@@ -19,8 +20,6 @@ interface OrgUser {
   jobsRun: number;
   createdBy: string;
 }
-
-const ROLES_LIST = ['Organization Owner', 'Admin', 'Sub-Admin', 'Operations Manager', 'Rail Planner', 'Compliance Officer', 'Yard Supervisor', 'Loader Operator', 'Viewer'];
 
 const ROLE_COLORS: Record<string, string> = {
   'Organization Owner': '#9333EA',
@@ -49,7 +48,8 @@ export function UserManagement() {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Rail Planner' });
+  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [newUser, setNewUser] = useState({ name: '', email: '', roleId: 3 });
 
   const bg = isDark ? '#0D1117' : '#FFFFFF';
   const border = isDark ? '#1E2A38' : '#E2E8F0';
@@ -60,22 +60,18 @@ export function UserManagement() {
   const inputBg = isDark ? '#060B10' : '#F8FAFC';
 
 
-  const mapRoleFromRoleId = (roleId: number): string => {
-    if (roleId === 1) return 'Organization Owner';
-    if (roleId === 2) return 'Admin';
-    if (roleId === 3) return 'Sub-Admin';
-    return 'Viewer';
-  };
+  const mapRoleFromRoleId = (roleId: number, roleRows: { id: number; name: string }[]): string =>
+    roleRows.find(r => r.id === roleId)?.name ?? `Role #${roleId}`;
 
-  const loadUsers = async () => {
+  const loadUsers = async (roleRows: { id: number; name: string }[]) => {
     setLoading(true);
     try {
       const apiUsers = await listUsers();
-      const mapped: OrgUser[] = apiUsers.map((u) => ({
+      const mapped: OrgUser[] = apiUsers.map(u => ({
         id: String(u.id),
         name: u.name,
         email: u.email,
-        role: mapRoleFromRoleId(u.role_id),
+        role: mapRoleFromRoleId(u.role_id, roleRows),
         status: u.status === 'disabled' ? 'suspended' : (u.status as 'active' | 'invited'),
         lastActive: u.last_login ? new Date(u.last_login).toLocaleString() : 'Never',
         mfa: u.mfa_enabled,
@@ -89,7 +85,13 @@ export function UserManagement() {
   };
 
   useEffect(() => {
-    void loadUsers();
+    void (async () => {
+      const roleRows = await fetchRoles()
+        .then(r => r.map(x => ({ id: x.id, name: x.name })))
+        .catch(() => [] as { id: number; name: string }[]);
+      setRoles(roleRows);
+      await loadUsers(roleRows);
+    })();
   }, []);
 
   const filtered = useMemo(() => users.filter(u => {
@@ -105,7 +107,7 @@ export function UserManagement() {
     if (!target) return;
     const nextStatus = target.status === 'active' ? 'disabled' : 'active';
     await updateUser(Number(userId), { status: nextStatus });
-    await loadUsers();
+    await loadUsers(roles);
   };
 
   const handleAddUser = async () => {
@@ -113,11 +115,11 @@ export function UserManagement() {
       name: newUser.name,
       email: newUser.email,
       password: 'TempPassword123!',
-      role_id: 3,
+      role_id: newUser.roleId,
     });
-    await loadUsers();
+    await loadUsers(roles);
     setShowAddUser(false);
-    setNewUser({ name: '', email: '', role: 'Rail Planner' });
+    setNewUser({ name: '', email: '', roleId: roles[0]?.id ?? 3 });
   };
 
   const inputStyle: React.CSSProperties = {
@@ -174,7 +176,11 @@ export function UserManagement() {
             style={{ background: bg, border: `1px solid ${border}`, color: text, borderRadius: 8, padding: '8px 12px', fontSize: 12, outline: 'none', cursor: 'pointer' }}
           >
             <option value="all">All Roles</option>
-            {ROLES_LIST.map(r => <option key={r} value={r}>{r}</option>)}
+            {roles.map(r => (
+              <option key={r.id} value={r.name}>
+                {r.name}
+              </option>
+            ))}
           </select>
           {['all', 'active', 'suspended', 'invited'].map(s => (
             <button
@@ -326,7 +332,11 @@ export function UserManagement() {
                   defaultValue={selectedUser.role}
                   style={{ ...inputStyle, background: bg }}
                 >
-                  {ROLES_LIST.map(r => <option key={r} value={r}>{r}</option>)}
+                  {roles.map(r => (
+                    <option key={r.id} value={r.name}>
+                      {r.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -434,8 +444,18 @@ export function UserManagement() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: textPrimary, marginBottom: 6 }}>Role</label>
-                  <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    {ROLES_LIST.filter(r => r !== 'Organization Owner').map(r => <option key={r} value={r}>{r}</option>)}
+                  <select
+                    value={newUser.roleId}
+                    onChange={e => setNewUser(p => ({ ...p, roleId: Number(e.target.value) }))}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                  >
+                    {roles
+                      .filter(r => r.name !== 'super_admin')
+                      .map(r => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>

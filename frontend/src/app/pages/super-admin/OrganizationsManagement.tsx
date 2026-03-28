@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchOrganizations, fetchUsersGlobal } from '../../services/domainApi';
 import {
   Building2, Search, Filter, MoreVertical, Users, Cpu,
   CheckCircle2, XCircle, AlertTriangle, ChevronRight,
@@ -28,16 +29,17 @@ interface Org {
   errorRate: number;
 }
 
-const ORGS: Org[] = [
-  { id: 'ORG-001', name: 'RailCorp Inc.', plan: 'Enterprise', users: 247, activeJobs: 18, status: 'active', admin: 'Sarah Mitchell', created: 'Jan 2024', storage: '142 GB', apiCalls: 48200, errorRate: 0.8 },
-  { id: 'ORG-002', name: 'LogiTrans Partners', plan: 'Professional', users: 89, activeJobs: 7, status: 'active', admin: 'James Chen', created: 'Mar 2024', storage: '56 GB', apiCalls: 18600, errorRate: 1.1 },
-  { id: 'ORG-003', name: 'FreightCo Global', plan: 'Enterprise', users: 312, activeJobs: 24, status: 'active', admin: 'Ana Patel', created: 'Nov 2023', storage: '289 GB', apiCalls: 72400, errorRate: 0.6 },
-  { id: 'ORG-004', name: 'MidWest Rail', plan: 'Starter', users: 24, activeJobs: 3, status: 'trial', admin: 'Robert Kim', created: 'Feb 2025', storage: '8 GB', apiCalls: 2100, errorRate: 2.4 },
-  { id: 'ORG-005', name: 'National Rail Authority', plan: 'Enterprise', users: 418, activeJobs: 31, status: 'active', admin: 'Emily Watson', created: 'Sep 2023', storage: '421 GB', apiCalls: 91000, errorRate: 0.4 },
-  { id: 'ORG-006', name: 'Coastal Logistics', plan: 'Professional', users: 67, activeJobs: 0, status: 'suspended', admin: 'Mark Torres', created: 'Jun 2024', storage: '31 GB', apiCalls: 0, errorRate: 0 },
-  { id: 'ORG-007', name: 'Alpine Freight', plan: 'Starter', users: 18, activeJobs: 2, status: 'trial', admin: 'Lisa Anderson', created: 'Mar 2025', storage: '4 GB', apiCalls: 900, errorRate: 3.1 },
-  { id: 'ORG-008', name: 'Pacific Rail Systems', plan: 'Professional', users: 134, activeJobs: 11, status: 'active', admin: 'David Park', created: 'Apr 2024', storage: '98 GB', apiCalls: 31500, errorRate: 1.3 },
-];
+function planLabel(pt: string): 'Enterprise' | 'Professional' | 'Starter' {
+  if (pt === 'enterprise') return 'Enterprise';
+  if (pt === 'growth') return 'Professional';
+  return 'Starter';
+}
+
+function statusLabel(s: string): 'active' | 'suspended' | 'trial' {
+  if (s === 'suspended') return 'suspended';
+  if (s === 'deleted') return 'suspended';
+  return 'active';
+}
 
 const PLAN_COLORS: Record<string, string> = {
   Enterprise: SA.purple,
@@ -51,51 +53,97 @@ const STATUS_COLORS: Record<string, string> = {
   trial: SA.amber,
 };
 
-const ORG_USERS = [
-  { name: 'Sarah Mitchell', email: 'sarah@railcorp.com', role: 'Organization Owner', lastLogin: '2h ago', status: 'active' },
-  { name: 'James Chen', email: 'james@railcorp.com', role: 'Admin', lastLogin: '5h ago', status: 'active' },
-  { name: 'Maria Rodriguez', email: 'maria@railcorp.com', role: 'Operations Manager', lastLogin: '1d ago', status: 'active' },
-  { name: 'David Park', email: 'dpark@railcorp.com', role: 'Rail Planner', lastLogin: '3h ago', status: 'active' },
-  { name: 'Jennifer Lee', email: 'jlee@railcorp.com', role: 'Rail Planner', lastLogin: '2w ago', status: 'suspended' },
-];
-
 export function OrganizationsManagement() {
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [globalUsers, setGlobalUsers] = useState<{ name: string; email: string; role_id: number; last_login: string | null; status: string; organization_id: number | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPlan, setFilterPlan] = useState('all');
   const [selected, setSelected] = useState<Org | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'users' | 'logs'>('overview');
 
-  const filtered = ORGS.filter(o => {
+  useEffect(() => {
+    let c = false;
+    (async () => {
+      setLoading(true);
+      setLoadErr(null);
+      try {
+        const [raw, userPage] = await Promise.all([fetchOrganizations(), fetchUsersGlobal(1, 500)]);
+        if (c) return;
+        setGlobalUsers(userPage.items.map(u => ({ name: u.name, email: u.email, role_id: u.role_id, last_login: u.last_login, status: u.status, organization_id: u.organization_id })));
+        const usersByOrg = new Map<number, number>();
+        userPage.items.forEach(u => {
+          if (u.organization_id == null) return;
+          usersByOrg.set(u.organization_id, (usersByOrg.get(u.organization_id) ?? 0) + 1);
+        });
+        setOrgs(
+          raw.map(o => ({
+            id: `ORG-${o.id}`,
+            name: o.name,
+            plan: planLabel(o.plan_type),
+            users: usersByOrg.get(o.id) ?? 0,
+            activeJobs: 0,
+            status: statusLabel(o.status),
+            admin: '—',
+            created: new Date(o.created_at).toLocaleDateString(),
+            storage: '—',
+            apiCalls: 0,
+            errorRate: 0,
+          })),
+        );
+      } catch (e) {
+        if (!c) setLoadErr(e instanceof Error ? e.message : 'Failed to load organizations');
+      } finally {
+        if (!c) setLoading(false);
+      }
+    })();
+    return () => {
+      c = true;
+    };
+  }, []);
+
+  const filtered = orgs.filter(o => {
     const matchSearch = o.name.toLowerCase().includes(search.toLowerCase()) || o.admin.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || o.status === filterStatus;
     const matchPlan = filterPlan === 'all' || o.plan === filterPlan;
     return matchSearch && matchStatus && matchPlan;
   });
 
+  const selectedNumericId = selected ? Number(String(selected.id).replace(/^ORG-/, '')) : NaN;
+  const orgUserRows = Number.isFinite(selectedNumericId) ? globalUsers.filter(u => u.organization_id === selectedNumericId) : [];
+
   return (
     <div className="flex h-full" style={{ fontFamily: 'Inter, sans-serif' }}>
       {/* Main */}
       <div className="flex-1 p-6 overflow-auto">
+        {loadErr && (
+          <div className="mb-4 rounded-lg px-4 py-3" style={{ background: SA.red + '12', border: `1px solid ${SA.red}40`, color: SA.red, fontSize: 13 }}>
+            {loadErr}
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 22, color: SA.textPrimary, letterSpacing: '-0.02em' }}>
               Organizations
             </h1>
-            <p style={{ fontSize: 13, color: SA.text, marginTop: 2 }}>{ORGS.length} registered organizations</p>
+            <p style={{ fontSize: 13, color: SA.text, marginTop: 2 }}>
+              {loading ? 'Loading…' : `${orgs.length} from GET /organizations`}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {/* Quick stats */}
             <div className="flex items-center gap-1 rounded-lg px-3 py-1.5" style={{ background: SA.card, border: `1px solid ${SA.border}` }}>
               <span style={{ fontSize: 12, color: SA.text }}>Active:</span>
-              <span style={{ fontSize: 12, color: SA.green, fontWeight: 600 }}>{ORGS.filter(o => o.status === 'active').length}</span>
+              <span style={{ fontSize: 12, color: SA.green, fontWeight: 600 }}>{orgs.filter(o => o.status === 'active').length}</span>
               <span style={{ fontSize: 12, color: SA.textMuted, margin: '0 4px' }}>·</span>
               <span style={{ fontSize: 12, color: SA.text }}>Trial:</span>
-              <span style={{ fontSize: 12, color: SA.amber, fontWeight: 600 }}>{ORGS.filter(o => o.status === 'trial').length}</span>
+              <span style={{ fontSize: 12, color: SA.amber, fontWeight: 600 }}>{orgs.filter(o => o.status === 'trial').length}</span>
               <span style={{ fontSize: 12, color: SA.textMuted, margin: '0 4px' }}>·</span>
               <span style={{ fontSize: 12, color: SA.text }}>Suspended:</span>
-              <span style={{ fontSize: 12, color: SA.red, fontWeight: 600 }}>{ORGS.filter(o => o.status === 'suspended').length}</span>
+              <span style={{ fontSize: 12, color: SA.red, fontWeight: 600 }}>{orgs.filter(o => o.status === 'suspended').length}</span>
             </div>
           </div>
         </div>
@@ -291,21 +339,27 @@ export function OrganizationsManagement() {
 
             {detailTab === 'users' && (
               <div className="p-5 space-y-2">
-                <div style={{ fontSize: 12, color: SA.text, marginBottom: 8 }}>Showing top users for {selected.name}</div>
-                {ORG_USERS.map(u => (
-                  <div key={u.email} className="flex items-center justify-between rounded-lg p-3" style={{ background: SA.cardAlt, border: `1px solid ${SA.border}` }}>
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-full flex items-center justify-center" style={{ width: 28, height: 28, background: SA.blue + '25', color: SA.blue, fontSize: 11, fontWeight: 700 }}>
-                        {u.name.split(' ').map(n => n[0]).join('')}
+                <div style={{ fontSize: 12, color: SA.text, marginBottom: 8 }}>Users in org (from GET /users?scope=global)</div>
+                {orgUserRows.length === 0 ? (
+                  <div style={{ fontSize: 12, color: SA.textMuted }}>No users in sample page — increase page size or add members.</div>
+                ) : (
+                  orgUserRows.map(u => (
+                    <div key={u.email} className="flex items-center justify-between rounded-lg p-3" style={{ background: SA.cardAlt, border: `1px solid ${SA.border}` }}>
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-full flex items-center justify-center" style={{ width: 28, height: 28, background: SA.blue + '25', color: SA.blue, fontSize: 11, fontWeight: 700 }}>
+                          {u.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: SA.textPrimary }}>{u.name}</div>
+                          <div style={{ fontSize: 10, color: SA.text }}>
+                            role #{u.role_id} · {u.last_login ? new Date(u.last_login).toLocaleString() : '—'}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: SA.textPrimary }}>{u.name}</div>
-                        <div style={{ fontSize: 10, color: SA.text }}>{u.role} · {u.lastLogin}</div>
-                      </div>
+                      <div className="h-1.5 w-1.5 rounded-full" style={{ background: u.status === 'active' ? SA.green : SA.red }} />
                     </div>
-                    <div className="h-1.5 w-1.5 rounded-full" style={{ background: u.status === 'active' ? SA.green : SA.red }} />
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             )}
 

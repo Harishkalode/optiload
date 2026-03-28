@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { fetchAuditLogs, fetchOrganizations, type AuditLogRow } from '../../services/domainApi';
 import {
   ScrollText, Download, Search, Filter, Calendar,
   AlertTriangle, Info, CheckCircle2, XCircle, Shield,
@@ -26,22 +27,27 @@ interface Log {
   details: string;
 }
 
-const LOGS: Log[] = [
-  { id: 'AL-001', timestamp: '2026-03-27 14:23:15', user: 'Sarah Mitchell', org: 'RailCorp Inc.', action: 'user.created', resource: 'User', ip: '192.168.1.45', severity: 'info', result: 'success', details: 'Created new user: Thomas Wright' },
-  { id: 'AL-002', timestamp: '2026-03-27 14:15:42', user: 'Unknown', org: 'System', action: 'auth.brute_force', resource: 'Auth', ip: '185.45.72.3', severity: 'critical', result: 'failed', details: 'Brute force attempt blocked — 15 failed logins in 2 minutes' },
-  { id: 'AL-003', timestamp: '2026-03-27 13:58:21', user: 'Ana Patel', org: 'FreightCo Global', action: 'optimization.run', resource: 'Optimization', ip: '10.0.1.73', severity: 'info', result: 'success', details: 'Ran optimization job OPT-2941' },
-  { id: 'AL-004', timestamp: '2026-03-27 13:45:09', user: 'James Chen', org: 'LogiTrans Partners', action: 'vehicle.deleted', resource: 'Vehicle', ip: '10.0.1.52', severity: 'warning', result: 'success', details: 'Deleted vehicle: Flatcar #248' },
-  { id: 'AL-005', timestamp: '2026-03-27 13:32:54', user: 'System', org: 'Platform', action: 'system.backup', resource: 'Database', ip: '127.0.0.1', severity: 'info', result: 'success', details: 'Automated database backup completed — 421 GB' },
-  { id: 'AL-006', timestamp: '2026-03-27 12:18:33', user: 'Emily Watson', org: 'National Rail Authority', action: 'role.modified', resource: 'Role', ip: '10.0.1.88', severity: 'warning', result: 'success', details: 'Modified permissions for role: Rail Planner' },
-  { id: 'AL-007', timestamp: '2026-03-27 11:47:12', user: 'Mark Torres', org: 'Coastal Logistics', action: 'org.suspended', resource: 'Organization', ip: '10.0.0.1', severity: 'critical', result: 'success', details: 'Organization suspended by Super Admin: billing failure' },
-  { id: 'AL-008', timestamp: '2026-03-27 11:22:45', user: 'Robert Kim', org: 'MidWest Rail', action: 'api_key.created', resource: 'API Key', ip: '10.0.1.54', severity: 'info', result: 'success', details: 'Created new API key: prod-integration' },
-  { id: 'AL-009', timestamp: '2026-03-27 10:58:27', user: 'David Park', org: 'RailCorp Inc.', action: 'load.bulk_import', resource: 'Load', ip: '10.0.1.73', severity: 'info', result: 'success', details: 'Imported 312 loads from CSV' },
-  { id: 'AL-010', timestamp: '2026-03-27 10:15:03', user: 'Unknown', org: 'FreightCo Global', action: 'auth.failed', resource: 'Auth', ip: '203.45.78.122', severity: 'critical', result: 'failed', details: 'Failed login attempt for: admin@freightco.com' },
-  { id: 'AL-011', timestamp: '2026-03-27 09:42:18', user: 'System', org: 'Platform', action: 'worker.autoscale', resource: 'Infrastructure', ip: '127.0.0.1', severity: 'info', result: 'success', details: 'Worker pool auto-scaled from 4 to 8 instances' },
-  { id: 'AL-012', timestamp: '2026-03-27 09:12:55', user: 'Sandra White', org: 'FreightCo Global', action: 'compliance.export', resource: 'Report', ip: '10.0.1.88', severity: 'info', result: 'success', details: 'Exported AAR compliance report for job OPT-2940' },
-  { id: 'AL-013', timestamp: '2026-03-27 08:45:00', user: 'Super Admin', org: 'Platform', action: 'feature.toggled', resource: 'Feature Flag', ip: '10.0.0.1', severity: 'warning', result: 'success', details: 'Disabled Simulation Mode for: Alpine Freight' },
-  { id: 'AL-014', timestamp: '2026-03-27 08:12:30', user: 'Lisa Anderson', org: 'Alpine Freight', action: 'user.role_changed', resource: 'User', ip: '10.0.1.92', severity: 'warning', result: 'success', details: 'Role changed for Jennifer Lee: Viewer → Sub-Admin' },
-];
+function mapApi(l: AuditLogRow, orgNames: Map<number, string>): Log {
+  const a = l.action.toLowerCase();
+  let severity: Log['severity'] = 'info';
+  if (a.includes('fail') || a.includes('error') || a.includes('denied')) severity = 'critical';
+  else if (a.includes('delete') || a.includes('warn')) severity = 'warning';
+  else if (a.includes('create') || a.includes('success')) severity = 'success';
+  const result: Log['result'] = a.includes('fail') ? 'failed' : 'success';
+  const org = l.organization_id != null ? orgNames.get(l.organization_id) ?? `Org ${l.organization_id}` : 'Platform';
+  return {
+    id: String(l.id),
+    timestamp: new Date(l.timestamp).toLocaleString(),
+    user: `User ${l.user_id}`,
+    org,
+    action: l.action,
+    resource: l.resource,
+    ip: l.ip_address ?? '—',
+    severity,
+    result,
+    details: JSON.stringify(l.metadata_json ?? {}),
+  };
+}
 
 const SEV_ICON: Record<string, any> = {
   info: Info,
@@ -57,17 +63,41 @@ const SEV_COLOR: Record<string, string> = {
   success: SA.green,
 };
 
-const ORGS = Array.from(new Set(LOGS.map(l => l.org)));
-const ACTIONS = Array.from(new Set(LOGS.map(l => l.action)));
-
 export function GlobalAuditLogs() {
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterSev, setFilterSev] = useState('all');
   const [filterOrg, setFilterOrg] = useState('all');
   const [filterResult, setFilterResult] = useState('all');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const filtered = LOGS.filter(l => {
+  useEffect(() => {
+    let c = false;
+    (async () => {
+      setLoading(true);
+      setLoadErr(null);
+      try {
+        const [rows, orgs] = await Promise.all([fetchAuditLogs({}), fetchOrganizations()]);
+        if (c) return;
+        const names = new Map(orgs.map(o => [o.id, o.name]));
+        setLogs(rows.map(r => mapApi(r, names)));
+      } catch (e) {
+        if (!c) setLoadErr(e instanceof Error ? e.message : 'Failed to load');
+        if (!c) setLogs([]);
+      } finally {
+        if (!c) setLoading(false);
+      }
+    })();
+    return () => {
+      c = true;
+    };
+  }, []);
+
+  const ORGS = useMemo(() => Array.from(new Set(logs.map(l => l.org))).sort(), [logs]);
+
+  const filtered = logs.filter(l => {
     const matchSearch = l.user.toLowerCase().includes(search.toLowerCase()) ||
       l.action.toLowerCase().includes(search.toLowerCase()) ||
       l.org.toLowerCase().includes(search.toLowerCase()) ||
@@ -78,12 +108,17 @@ export function GlobalAuditLogs() {
     return matchSearch && matchSev && matchOrg && matchResult;
   });
 
-  const criticalCount = LOGS.filter(l => l.severity === 'critical').length;
-  const warningCount = LOGS.filter(l => l.severity === 'warning').length;
-  const failedCount = LOGS.filter(l => l.result === 'failed').length;
+  const criticalCount = logs.filter(l => l.severity === 'critical').length;
+  const warningCount = logs.filter(l => l.severity === 'warning').length;
+  const failedCount = logs.filter(l => l.result === 'failed').length;
 
   return (
     <div className="p-6 space-y-5" style={{ fontFamily: 'Inter, sans-serif' }}>
+      {loadErr && (
+        <div className="rounded-lg px-4 py-3" style={{ background: SA.red + '12', border: `1px solid ${SA.red}40`, color: SA.red, fontSize: 13 }}>
+          {loadErr} (requires audit.read)
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -91,7 +126,7 @@ export function GlobalAuditLogs() {
             Global Audit Logs
           </h1>
           <p style={{ fontSize: 13, color: SA.text, marginTop: 2 }}>
-            All platform activity — {LOGS.length} events today across all organizations
+            {loading ? 'Loading…' : `GET /audit-logs (super_admin) — ${logs.length} events loaded`}
           </p>
         </div>
         <button
@@ -108,7 +143,7 @@ export function GlobalAuditLogs() {
           { label: 'Critical Events', count: criticalCount, color: SA.red },
           { label: 'Warnings', count: warningCount, color: SA.amber },
           { label: 'Failed Actions', count: failedCount, color: SA.red },
-          { label: 'Total Events', count: LOGS.length, color: SA.text },
+          { label: 'Total Events', count: logs.length, color: SA.text },
         ].map(s => (
           <div key={s.label} className="rounded-lg px-3 py-1.5 flex items-center gap-2" style={{ background: SA.card, border: `1px solid ${SA.border}` }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.count}</span>
@@ -157,6 +192,8 @@ export function GlobalAuditLogs() {
 
       {/* Table */}
       <div className="rounded-xl overflow-hidden" style={{ background: SA.card, border: `1px solid ${SA.border}` }}>
+        {loading && <div className="py-12 text-center text-sm" style={{ color: SA.text }}>Loading…</div>}
+        {!loading && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${SA.border}` }}>
@@ -166,7 +203,7 @@ export function GlobalAuditLogs() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((log, i) => {
+            {filtered.map(log => {
               const SevIcon = SEV_ICON[log.severity];
               const isExpanded = expanded === log.id;
               return (
@@ -217,13 +254,14 @@ export function GlobalAuditLogs() {
             })}
           </tbody>
         </table>
-        {filtered.length === 0 && (
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="text-center py-12" style={{ color: SA.text, fontSize: 13 }}>No logs match your filters</div>
         )}
       </div>
 
       <div style={{ fontSize: 11, color: SA.textMuted }}>
-        Showing {filtered.length} of {LOGS.length} log entries · Logs retained for 90 days
+        Showing {filtered.length} of {logs.length} log entries
       </div>
     </div>
   );

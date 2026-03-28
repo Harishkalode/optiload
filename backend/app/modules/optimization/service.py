@@ -1,5 +1,7 @@
 from app.core.utils.errors import AppError
 from app.modules.loads.repository import LoadRepository
+from app.modules.notifications.model import Notification
+from app.modules.notifications.repository import NotificationRepository
 from app.modules.optimization.model import Optimization, OptimizationStatus
 from app.modules.optimization.repository import OptimizationRepository
 from app.modules.vehicles.repository import VehicleRepository
@@ -11,7 +13,7 @@ class OptimizationService:
         self.vehicle_repository = vehicle_repository
         self.load_repository = load_repository
 
-    def run(self, organization_id: int, payload: dict) -> Optimization:
+    def run(self, organization_id: int, payload: dict, *, actor_user_id: int) -> Optimization:
         vehicle = self.vehicle_repository.get_by_id(payload["vehicle_id"])
         if not vehicle or vehicle.organization_id != organization_id:
             raise AppError("INVALID_VEHICLE", "Vehicle does not belong to organization", status_code=400)
@@ -48,7 +50,18 @@ class OptimizationService:
             result_json=result,
             efficiency_score=score,
         )
-        return self.repository.create(optimization)
+        created = self.repository.create(optimization)
+        NotificationRepository(self.repository.db).create(
+            Notification(
+                user_id=actor_user_id,
+                organization_id=organization_id,
+                title="Optimization complete",
+                body=f"Run #{created.id} finished with efficiency {(score * 100):.1f}%.",
+                category="success",
+                link=f"/jobs/results?id={created.id}",
+            ),
+        )
+        return created
 
     def get(self, optimization_id: int) -> Optimization | None:
         return self.repository.get_by_id(optimization_id)

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
+from app.core.security.authorization import AppPermission, require_permission
 from app.core.middlewares.tenant import get_tenant_organization_id
 from app.core.utils.errors import AppError
 from app.core.utils.responses import success_response
@@ -21,10 +22,11 @@ def _service(db: Session) -> OptimizationService:
 
 @router.post("/run")
 def run_optimization(payload: OptimizationRunRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    require_permission(db, current_user, AppPermission.OPTIMIZATION_RUN)
     org_id = get_tenant_organization_id(current_user)
     if org_id is None:
         raise AppError("ORG_REQUIRED", "organization context is required")
-    optimization = _service(db).run(org_id, payload.model_dump())
+    optimization = _service(db).run(org_id, payload.model_dump(), actor_user_id=current_user.id)
     return success_response({"id": optimization.id, "status": optimization.status.value})
 
 
