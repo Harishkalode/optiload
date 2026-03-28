@@ -8,6 +8,7 @@ import { CommandPalette } from '../CommandPalette';
 import { NotificationCenter } from '../NotificationCenter';
 import { KeyboardShortcuts } from '../KeyboardShortcuts';
 import { useAuth } from '../../contexts/AuthContext';
+import { ROLES } from '../../constants/roles';
 
 export function AppLayout() {
   const { isDark, setColorMode, sidebarCollapsed, setSidebarCollapsed } = useTheme();
@@ -20,8 +21,8 @@ export function AppLayout() {
       navigate('/login');
       return;
     }
-    if (user?.role === 'Super Admin') {
-      navigate('/super-admin');
+    if (user?.role === ROLES.SUPER_ADMIN) {
+      navigate('/super-admin/dashboard');
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -99,7 +100,7 @@ export function AppLayout() {
       // Navigation shortcuts: G then D/J/V/L/R/S
       if (pendingG) {
         setPendingG(false);
-        if (e.key === 'd') { navigate('/'); return; }
+        if (e.key === 'd') { navigate('/dashboard'); return; }
         if (e.key === 'j') { navigate('/jobs'); return; }
         if (e.key === 'v') { navigate('/vehicles'); return; }
         if (e.key === 'l') { navigate('/loads'); return; }

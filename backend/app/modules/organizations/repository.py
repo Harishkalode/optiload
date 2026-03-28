@@ -11,8 +11,16 @@ class OrganizationRepository:
     def list_all(self) -> list[Organization]:
         return list(self.db.scalars(select(Organization)).all())
 
+    def get_by_id(self, organization_id: int) -> Organization | None:
+        return self.db.get(Organization, organization_id)
+
     def create(self, org: Organization) -> Organization:
         self.db.add(org)
+        self.db.commit()
+        self.db.refresh(org)
+        return org
+
+    def save(self, org: Organization) -> Organization:
         self.db.commit()
         self.db.refresh(org)
         return org

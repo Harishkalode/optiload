@@ -1,6 +1,11 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
+
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AppLayout } from './components/layout/AppLayout';
 import { SuperAdminLayout } from './components/layout/SuperAdminLayout';
+import { ROLES } from './constants/roles';
+import { Login } from './pages/Login';
+import { Unauthorized } from './pages/Unauthorized';
 import { Dashboard } from './pages/Dashboard';
 import { Vehicles } from './pages/Vehicles';
 import { VehicleCreator } from './pages/VehicleCreator';
@@ -11,15 +16,12 @@ import { Results } from './pages/Results';
 import { Reports } from './pages/Reports';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
-import { Login } from './pages/Login';
 import { UserManagement } from './pages/UserManagement';
 import { RolesManagement } from './pages/RolesManagement';
 import { AuditLogs } from './pages/AuditLogs';
 import { ApiKeysManagement } from './pages/ApiKeysManagement';
 import { IntegrationMap } from './pages/IntegrationMap';
 import { ApiDocs } from './pages/ApiDocs';
-
-// Super Admin pages
 import { GlobalDashboard } from './pages/super-admin/GlobalDashboard';
 import { OrganizationsManagement } from './pages/super-admin/OrganizationsManagement';
 import { GlobalUsers } from './pages/super-admin/GlobalUsers';
@@ -30,26 +32,21 @@ import { FeatureControl } from './pages/super-admin/FeatureControl';
 import { SuperAdminSettings } from './pages/super-admin/SuperAdminSettings';
 
 export const router = createBrowserRouter([
-  {
-    path: '/login',
-    Component: Login,
-  },
-  // Developer integration map — standalone, no layout wrapper
-  {
-    path: '/dev/integration-map',
-    Component: IntegrationMap,
-  },
-  // Developer API docs comment layer — standalone
-  {
-    path: '/dev/api-docs',
-    Component: ApiDocs,
-  },
-  // Super Admin workspace — completely separate product
+  { path: '/login', Component: Login },
+  { path: '/create-account', Component: Login },
+  { path: '/unauthorized', Component: Unauthorized },
+  { path: '/dev/integration-map', Component: IntegrationMap },
+  { path: '/dev/api-docs', Component: ApiDocs },
   {
     path: '/super-admin',
-    Component: SuperAdminLayout,
+    Component: () => (
+      <ProtectedRoute roles={[ROLES.SUPER_ADMIN]}>
+        <SuperAdminLayout />
+      </ProtectedRoute>
+    ),
     children: [
-      { index: true, Component: GlobalDashboard },
+      { index: true, Component: () => <Navigate to="/super-admin/dashboard" replace /> },
+      { path: 'dashboard', Component: GlobalDashboard },
       { path: 'organizations', Component: OrganizationsManagement },
       { path: 'users', Component: GlobalUsers },
       { path: 'monitoring', Component: SystemMonitoring },
@@ -59,12 +56,16 @@ export const router = createBrowserRouter([
       { path: 'settings', Component: SuperAdminSettings },
     ],
   },
-  // Admin / Org workspace
   {
     path: '/',
-    Component: AppLayout,
+    Component: () => (
+      <ProtectedRoute roles={[ROLES.ADMIN, ROLES.SUB_ADMIN, ROLES.VIEWER]}>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
-      { index: true, Component: Dashboard },
+      { index: true, Component: () => <Navigate to="/dashboard" replace /> },
+      { path: 'dashboard', Component: Dashboard },
       { path: 'jobs', Component: OptimizationJobs },
       { path: 'jobs/new', Component: OptimizationJobs },
       { path: 'jobs/processing', Component: Processing },
