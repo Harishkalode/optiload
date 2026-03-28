@@ -1,7 +1,6 @@
+from app.modules.system_monitoring.model import SystemMetric
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.modules.system_monitoring.model import SystemMetric
 
 
 class SystemMetricRepository:

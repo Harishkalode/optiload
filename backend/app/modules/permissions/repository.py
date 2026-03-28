@@ -1,7 +1,6 @@
+from app.modules.permissions.model import Permission
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.modules.permissions.model import Permission
 
 
 class PermissionRepository:

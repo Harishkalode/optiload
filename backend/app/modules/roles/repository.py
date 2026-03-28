@@ -1,8 +1,7 @@
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from app.modules.permissions.model import Permission
 from app.modules.roles.model import Role
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 
 class RoleRepository:

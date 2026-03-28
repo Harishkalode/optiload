@@ -3,11 +3,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "OptiLoad Backend"
+    app_name: str = "OptiLoad"
     api_prefix: str = "/api/v1"
     environment: str = "development"
 
-    database_url: str = "sqlite:///./optiload.db"
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/optiload"
 
     jwt_secret_key: str = Field(default="replace-this-in-env-with-32-plus-characters", min_length=32)
     jwt_algorithm: str = "HS256"
