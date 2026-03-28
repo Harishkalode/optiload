@@ -19,8 +19,7 @@ class VehicleService:
         return vehicle
 
     def create_vehicle(self, organization_id: int, payload: dict) -> Vehicle:
-        vehicle = Vehicle(organization_id=organization_id, type=VehicleType(payload["type"]),
-                          dimensions=payload["dimensions"], capacity=payload["capacity"])
+        vehicle = Vehicle(organization_id=organization_id, type=VehicleType(payload["type"]), dimensions=payload["dimensions"], capacity=payload["capacity"])
         return self.repository.create(vehicle)
 
     def update_vehicle(self, organization_id: int, vehicle_id: int, payload: dict) -> Vehicle:

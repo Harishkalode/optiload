@@ -1,18 +1,31 @@
-from app.api.routes.v1 import api_router
-from app.core.config import settings
-from app.core.middlewares.rate_limit import RateLimitMiddleware
-from app.core.middlewares.security_headers import SecurityHeadersMiddleware
-from app.core.utils.responses import error_response
-# Import models to register metadata
-from app.modules.audit_logs.repository import AuditLogRepository
-from app.modules.audit_logs.service import AuditLogService
-from app.modules.auth.repository import AuthRepository
-from app.modules.auth.service import AuthService
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+
+from app.api.routes.v1 import api_router
+from app.core.config import settings
+from app.core.middlewares.rate_limit import RateLimitMiddleware
+from app.core.middlewares.security_headers import SecurityHeadersMiddleware
+from app.core.utils.responses import error_response
+
+# Import models to register metadata
+from app.modules.audit_logs import model as _audit_model
+from app.modules.audit_logs.repository import AuditLogRepository
+from app.modules.audit_logs.service import AuditLogService
+from app.modules.auth import model as _auth_model
+from app.modules.auth.repository import AuthRepository
+from app.modules.auth.service import AuthService
+from app.modules.loads import model as _loads_model
+from app.modules.load_builder import model as _load_builder_model
+from app.modules.optimization import model as _optimization_model
+from app.modules.organizations import model as _org_model
+from app.modules.permissions import model as _permission_model
+from app.modules.roles import model as _role_model
+from app.modules.system_monitoring import model as _monitoring_model
+from app.modules.users import model as _users_model
+from app.modules.vehicles import model as _vehicle_model
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(

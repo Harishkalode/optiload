@@ -1,3 +1,6 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
 from app.core.middlewares.tenant import get_tenant_organization_id
@@ -6,8 +9,6 @@ from app.core.utils.responses import success_response
 from app.modules.api_keys.repository import ApiKeyRepository
 from app.modules.api_keys.service import ApiKeyService
 from app.modules.api_keys.validator import ApiKeyCreateRequest
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api-keys", tags=["api_keys"])
 
@@ -18,8 +19,7 @@ def list_api_keys(db: Session = Depends(get_db), current_user=Depends(get_curren
     if org_id is None:
         raise AppError("ORG_REQUIRED", "organization context is required")
     keys = ApiKeyService(ApiKeyRepository(db)).list_keys(org_id)
-    return success_response(
-        [{"id": k.id, "organization_id": k.organization_id, "permissions_json": k.permissions_json} for k in keys])
+    return success_response([{"id": k.id, "organization_id": k.organization_id, "permissions_json": k.permissions_json} for k in keys])
 
 
 @router.post("")

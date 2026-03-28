@@ -19,8 +19,7 @@ class LoadService:
         return load
 
     def create_load(self, organization_id: int, payload: dict) -> Load:
-        load = Load(organization_id=organization_id, type=LoadType(payload["type"]), dimensions=payload["dimensions"],
-                    weight=payload["weight"], quantity=payload["quantity"])
+        load = Load(organization_id=organization_id, type=LoadType(payload["type"]), dimensions=payload["dimensions"], weight=payload["weight"], quantity=payload["quantity"])
         return self.repository.create(load)
 
     def update_load(self, organization_id: int, load_id: int, payload: dict) -> Load:

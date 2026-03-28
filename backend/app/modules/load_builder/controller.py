@@ -1,3 +1,6 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
 from app.core.middlewares.tenant import get_tenant_organization_id
@@ -8,8 +11,6 @@ from app.modules.load_builder.service import LoadBuilderService
 from app.modules.load_builder.validator import LoadBuilderAddItemRequest, LoadBuilderSessionCreateRequest
 from app.modules.loads.repository import LoadRepository
 from app.modules.vehicles.repository import VehicleRepository
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/load-builder", tags=["load_builder"])
 
@@ -19,8 +20,7 @@ def _service(db: Session) -> LoadBuilderService:
 
 
 @router.post("/session")
-def create_session(payload: LoadBuilderSessionCreateRequest, db: Session = Depends(get_db),
-                   current_user=Depends(get_current_user)):
+def create_session(payload: LoadBuilderSessionCreateRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     org_id = get_tenant_organization_id(current_user)
     if org_id is None:
         raise AppError("ORG_REQUIRED", "organization context is required")

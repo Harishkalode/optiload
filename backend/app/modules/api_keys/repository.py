@@ -1,6 +1,7 @@
-from app.modules.auth.model import ApiKey
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.modules.auth.model import ApiKey
 
 
 class ApiKeyRepository:

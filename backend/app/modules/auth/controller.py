@@ -1,3 +1,6 @@
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session
+
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
 from app.core.utils.responses import success_response
@@ -6,8 +9,6 @@ from app.modules.audit_logs.service import AuditLogService
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService
 from app.modules.auth.validator import LoginRequest, RefreshRequest, RegisterRequest
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

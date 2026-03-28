@@ -1,6 +1,7 @@
-from app.modules.loads.model import Load
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.modules.loads.model import Load
 
 
 class LoadRepository:
@@ -8,8 +9,7 @@ class LoadRepository:
         self.db = db
 
     def list_by_org(self, organization_id: int) -> list[Load]:
-        return list(
-            self.db.scalars(select(Load).where(Load.organization_id == organization_id).order_by(Load.id.desc())).all())
+        return list(self.db.scalars(select(Load).where(Load.organization_id == organization_id).order_by(Load.id.desc())).all())
 
     def get_by_id(self, load_id: int) -> Load | None:
         return self.db.get(Load, load_id)

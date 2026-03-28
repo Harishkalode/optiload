@@ -1,6 +1,7 @@
-from app.modules.vehicles.model import Vehicle
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.modules.vehicles.model import Vehicle
 
 
 class VehicleRepository:
@@ -8,8 +9,7 @@ class VehicleRepository:
         self.db = db
 
     def list_by_org(self, organization_id: int) -> list[Vehicle]:
-        return list(self.db.scalars(
-            select(Vehicle).where(Vehicle.organization_id == organization_id).order_by(Vehicle.id.desc())).all())
+        return list(self.db.scalars(select(Vehicle).where(Vehicle.organization_id == organization_id).order_by(Vehicle.id.desc())).all())
 
     def get_by_id(self, vehicle_id: int) -> Vehicle | None:
         return self.db.get(Vehicle, vehicle_id)
