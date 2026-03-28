@@ -10,14 +10,14 @@ class AuditLogService:
         return self.repository.list_by_org(organization_id)
 
     def record(
-        self,
-        user_id: int,
-        organization_id: int | None,
-        action: str,
-        resource: str,
-        resource_id: str,
-        metadata_json: dict,
-        ip_address: str,
+            self,
+            user_id: int,
+            organization_id: int | None,
+            action: str,
+            resource: str,
+            resource_id: str,
+            metadata_json: dict,
+            ip_address: str,
     ) -> AuditLog:
         log = AuditLog(
             user_id=user_id,

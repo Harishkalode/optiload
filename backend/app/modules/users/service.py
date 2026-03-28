@@ -48,7 +48,8 @@ class UserService:
         )
         return created
 
-    def update_user(self, user_id: int, payload: dict, actor_id: int, actor_org_id: int | None, ip_address: str) -> User:
+    def update_user(self, user_id: int, payload: dict, actor_id: int, actor_org_id: int | None,
+                    ip_address: str) -> User:
         user = self.repository.get_by_id(user_id)
         if not user:
             raise AppError("NOT_FOUND", "User not found", status_code=404)

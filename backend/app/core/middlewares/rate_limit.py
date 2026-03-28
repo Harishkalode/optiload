@@ -1,12 +1,11 @@
 import time
 from collections import defaultdict, deque
 
+from app.core.config import settings
+from app.core.utils.responses import error_response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-
-from app.core.config import settings
-from app.core.utils.responses import error_response
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

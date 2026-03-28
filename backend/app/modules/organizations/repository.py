@@ -1,7 +1,6 @@
+from app.modules.organizations.model import Organization
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.modules.organizations.model import Organization
 
 
 class OrganizationRepository:

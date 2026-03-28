@@ -1,7 +1,6 @@
+from app.modules.audit_logs.model import AuditLog
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.modules.audit_logs.model import AuditLog
 
 
 class AuditLogRepository:

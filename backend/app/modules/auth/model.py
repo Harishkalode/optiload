@@ -1,7 +1,6 @@
+from app.core.database.base import Base
 from sqlalchemy import ForeignKey, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database.base import Base
 
 
 class ApiKey(Base):

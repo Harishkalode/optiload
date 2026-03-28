@@ -1,18 +1,17 @@
-from fastapi import Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
-
 from app.core.database.session import get_db
 from app.core.utils.errors import AppError
 from app.core.utils.security import decode_access_token
 from app.modules.users.model import User
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
 
 bearer_scheme = HTTPBearer(auto_error=True)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+        credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+        db: Session = Depends(get_db),
 ) -> User:
     try:
         payload = decode_access_token(credentials.credentials)
