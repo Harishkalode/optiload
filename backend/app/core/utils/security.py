@@ -3,9 +3,8 @@ from uuid import uuid4
 
 import bcrypt
 import jwt
-from jwt.exceptions import PyJWTError
-
 from app.core.config import settings
+from jwt.exceptions import PyJWTError
 
 BCRYPT_MAX_INPUT_LENGTH = 72
 

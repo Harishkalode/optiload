@@ -1,7 +1,3 @@
-from fastapi import APIRouter, Body, Depends, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-
 from app.core.config import settings
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
@@ -12,6 +8,9 @@ from app.modules.auth.cookie_response import attach_auth_cookies, clear_auth_coo
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService
 from app.modules.auth.validator import LoginRequest, RefreshRequest, RegisterRequest
+from fastapi import APIRouter, Body, Depends, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -56,9 +55,9 @@ def me(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
 
 @router.post("/refresh")
 def refresh(
-    request: Request,
-    db: Session = Depends(get_db),
-    body: RefreshRequest = Body(default_factory=RefreshRequest),
+        request: Request,
+        db: Session = Depends(get_db),
+        body: RefreshRequest = Body(default_factory=RefreshRequest),
 ):
     token = body.refresh_token or request.cookies.get(settings.refresh_token_cookie_name)
     result = _service(db).refresh(token or "")

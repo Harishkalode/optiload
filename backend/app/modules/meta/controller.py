@@ -1,5 +1,3 @@
-from fastapi import APIRouter, Depends
-
 from app.core.middlewares.auth import get_current_user
 from app.core.utils.responses import success_response
 from app.modules.loads.model import LoadType
@@ -7,6 +5,7 @@ from app.modules.optimization.model import OptimizationStatus
 from app.modules.organizations.model import OrganizationStatus
 from app.modules.users.model import UserStatus
 from app.modules.vehicles.model import VehicleType
+from fastapi import APIRouter, Depends
 
 router = APIRouter(tags=["meta"])
 

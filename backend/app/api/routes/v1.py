@@ -1,5 +1,3 @@
-from fastapi import APIRouter
-
 from app.modules.api_keys.controller import router as api_keys_router
 from app.modules.audit_logs.controller import router as audit_logs_router
 from app.modules.auth.controller import router as auth_router
@@ -9,13 +7,14 @@ from app.modules.loads.controller import router as loads_router
 from app.modules.meta.controller import router as meta_router
 from app.modules.notifications.controller import router as notifications_router
 from app.modules.optimization.controller import router as optimization_router
-from app.modules.reports.controller import router as reports_router
 from app.modules.organizations.controller import router as organizations_router
 from app.modules.permissions.controller import router as permissions_router
+from app.modules.reports.controller import router as reports_router
 from app.modules.roles.controller import router as roles_router
 from app.modules.system_monitoring.controller import router as system_monitoring_router
 from app.modules.users.controller import router as users_router
 from app.modules.vehicles.controller import router as vehicles_router
+from fastapi import APIRouter
 
 api_router = APIRouter()
 api_router.include_router(auth_router)

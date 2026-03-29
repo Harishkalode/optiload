@@ -1,6 +1,3 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
 from app.core.middlewares.tenant import get_tenant_organization_id
@@ -12,6 +9,8 @@ from app.modules.loads.repository import LoadRepository
 from app.modules.optimization.repository import OptimizationRepository
 from app.modules.users.repository import UserRepository
 from app.modules.vehicles.repository import VehicleRepository
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 

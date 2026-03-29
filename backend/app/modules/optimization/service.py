@@ -8,7 +8,8 @@ from app.modules.vehicles.repository import VehicleRepository
 
 
 class OptimizationService:
-    def __init__(self, repository: OptimizationRepository, vehicle_repository: VehicleRepository, load_repository: LoadRepository):
+    def __init__(self, repository: OptimizationRepository, vehicle_repository: VehicleRepository,
+                 load_repository: LoadRepository):
         self.repository = repository
         self.vehicle_repository = vehicle_repository
         self.load_repository = load_repository

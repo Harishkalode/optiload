@@ -1,17 +1,16 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
-from app.core.security.authorization import AppPermission, require_permission
 from app.core.middlewares.tenant import get_tenant_organization_id
+from app.core.security.authorization import AppPermission, require_permission
 from app.core.utils.errors import AppError
 from app.core.utils.responses import success_response
 from app.modules.audit_logs.repository import AuditLogRepository
 from app.modules.audit_logs.service import AuditLogService
 from app.modules.users.model import User
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/audit-logs", tags=["audit_logs"])
 
@@ -37,12 +36,12 @@ def _log_row(l):
 
 @router.get("")
 def list_audit_logs(
-    user_id: int | None = None,
-    action: str | None = None,
-    date_from: datetime | None = Query(default=None, description="ISO-8601 start of range"),
-    date_to: datetime | None = Query(default=None, description="ISO-8601 end of range"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(_audit_user),
+        user_id: int | None = None,
+        action: str | None = None,
+        date_from: datetime | None = Query(default=None, description="ISO-8601 start of range"),
+        date_to: datetime | None = Query(default=None, description="ISO-8601 end of range"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(_audit_user),
 ):
     repo = AuditLogRepository(db)
     organization_id = get_tenant_organization_id(current_user)

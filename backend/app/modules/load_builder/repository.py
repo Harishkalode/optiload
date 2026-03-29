@@ -1,7 +1,6 @@
+from app.modules.load_builder.model import LoadSession, LoadSessionItem
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.modules.load_builder.model import LoadSession, LoadSessionItem
 
 
 class LoadBuilderRepository:

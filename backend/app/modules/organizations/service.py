@@ -11,7 +11,8 @@ class OrganizationService:
         return self.repository.list_all()
 
     def create_organization(self, payload: dict) -> Organization:
-        org = Organization(name=payload["name"], status=OrganizationStatus(payload["status"]), plan_type=OrganizationPlanType(payload["plan_type"]))
+        org = Organization(name=payload["name"], status=OrganizationStatus(payload["status"]),
+                           plan_type=OrganizationPlanType(payload["plan_type"]))
         return self.repository.create(org)
 
     def get_organization(self, organization_id: int) -> Organization:

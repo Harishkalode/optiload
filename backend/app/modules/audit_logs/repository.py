@@ -1,9 +1,8 @@
 from datetime import datetime
 
+from app.modules.audit_logs.model import AuditLog
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
-from app.modules.audit_logs.model import AuditLog
 
 
 class AuditLogRepository:
@@ -18,14 +17,14 @@ class AuditLogRepository:
         return list(self.db.scalars(query).all())
 
     def list_filtered(
-        self,
-        organization_id: int | None,
-        *,
-        user_id: int | None = None,
-        action: str | None = None,
-        date_from: datetime | None = None,
-        date_to: datetime | None = None,
-        limit: int = 500,
+            self,
+            organization_id: int | None,
+            *,
+            user_id: int | None = None,
+            action: str | None = None,
+            date_from: datetime | None = None,
+            date_to: datetime | None = None,
+            limit: int = 500,
     ) -> list[AuditLog]:
         query = select(AuditLog)
         if organization_id is not None:

@@ -1,9 +1,8 @@
 from datetime import datetime
 
+from app.modules.notifications.model import Notification
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
-
-from app.modules.notifications.model import Notification
 
 
 class NotificationRepository:
@@ -11,11 +10,11 @@ class NotificationRepository:
         self.db = db
 
     def list_for_user(
-        self,
-        user_id: int,
-        *,
-        unread_only: bool = False,
-        limit: int = 100,
+            self,
+            user_id: int,
+            *,
+            unread_only: bool = False,
+            limit: int = 100,
     ) -> list[Notification]:
         q = select(Notification).where(Notification.user_id == user_id)
         if unread_only:

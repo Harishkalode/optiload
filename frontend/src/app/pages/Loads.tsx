@@ -71,7 +71,7 @@ export function Loads() {
     }
     setFormErrors({});
     await createLoad({
-      type: 'box',
+      type: 'cube',
       dimensions: {
         length: Number(form.length || 0),
         width: Number(form.width || 0),

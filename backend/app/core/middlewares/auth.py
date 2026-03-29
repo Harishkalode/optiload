@@ -1,22 +1,21 @@
-from fastapi import Depends, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
-
 from app.core.config import settings
 from app.core.database.session import get_db
 from app.core.utils.errors import AppError
 from app.core.utils.security import decode_access_token
 from app.modules.roles.model import Role
 from app.modules.users.model import User
+from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+        request: Request,
+        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+        db: Session = Depends(get_db),
 ) -> User:
     token: str | None = None
     if credentials and credentials.credentials:

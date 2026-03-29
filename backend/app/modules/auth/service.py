@@ -1,8 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import inspect, select
-from sqlalchemy.exc import IntegrityError
-
 from app.core.config import settings
 from app.core.security.password_policy import validate_password_strength
 from app.core.utils.errors import AppError
@@ -23,6 +20,8 @@ from app.modules.permissions.model import Permission
 from app.modules.roles.model import Role, RoleScope
 from app.modules.users.model import User, UserStatus
 from app.modules.vehicles.model import Vehicle, VehicleType
+from sqlalchemy import inspect, select
+from sqlalchemy.exc import IntegrityError
 
 
 class AuthService:

@@ -11,16 +11,17 @@ Period = Literal["1M", "3M", "6M", "1Y"]
 
 def _period_start(period: Period) -> datetime:
     now = datetime.utcnow()
-    delta = {"1M": timedelta(days=30), "3M": timedelta(days=90), "6M": timedelta(days=180), "1Y": timedelta(days=365)}[period]
+    delta = {"1M": timedelta(days=30), "3M": timedelta(days=90), "6M": timedelta(days=180), "1Y": timedelta(days=365)}[
+        period]
     return now - delta
 
 
 class ReportsService:
     def __init__(
-        self,
-        optimization_repo: OptimizationRepository,
-        vehicle_repo: VehicleRepository,
-        load_repo: LoadRepository,
+            self,
+            optimization_repo: OptimizationRepository,
+            vehicle_repo: VehicleRepository,
+            load_repo: LoadRepository,
     ):
         self.optimization_repo = optimization_repo
         self.vehicle_repo = vehicle_repo
@@ -28,7 +29,8 @@ class ReportsService:
 
     def summary(self, organization_id: int, period: Period) -> dict:
         start = _period_start(period)
-        opts = [o for o in self.optimization_repo.list_by_org(organization_id) if o.created_at and o.created_at >= start]
+        opts = [o for o in self.optimization_repo.list_by_org(organization_id) if
+                o.created_at and o.created_at >= start]
         vehicles = self.vehicle_repo.list_by_org(organization_id)
         loads = self.load_repo.list_by_org(organization_id)
         avg_eff = round(sum((o.efficiency_score or 0) for o in opts) / len(opts), 4) if opts else 0.0
@@ -43,7 +45,8 @@ class ReportsService:
 
     def utilization(self, organization_id: int, period: Period) -> dict:
         start = _period_start(period)
-        opts = [o for o in self.optimization_repo.list_by_org(organization_id) if o.created_at and o.created_at >= start]
+        opts = [o for o in self.optimization_repo.list_by_org(organization_id) if
+                o.created_at and o.created_at >= start]
         by_vehicle: dict[int, list] = defaultdict(list)
         for o in opts:
             by_vehicle[o.vehicle_id].append(o)
@@ -62,7 +65,8 @@ class ReportsService:
 
     def performance(self, organization_id: int, period: Period) -> dict:
         start = _period_start(period)
-        opts = [o for o in self.optimization_repo.list_by_org(organization_id) if o.created_at and o.created_at >= start]
+        opts = [o for o in self.optimization_repo.list_by_org(organization_id) if
+                o.created_at and o.created_at >= start]
         by_month: dict[str, list] = defaultdict(list)
         for o in opts:
             key = o.created_at.strftime("%Y-%m")

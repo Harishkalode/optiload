@@ -12,14 +12,14 @@ class AuditLogService:
         return self.repository.list_by_org(organization_id)
 
     def list_logs_filtered(
-        self,
-        organization_id: int | None,
-        *,
-        user_id: int | None = None,
-        action: str | None = None,
-        date_from: datetime | None = None,
-        date_to: datetime | None = None,
-        limit: int = 500,
+            self,
+            organization_id: int | None,
+            *,
+            user_id: int | None = None,
+            action: str | None = None,
+            date_from: datetime | None = None,
+            date_to: datetime | None = None,
+            limit: int = 500,
     ) -> list[AuditLog]:
         return self.repository.list_filtered(
             organization_id,

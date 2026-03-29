@@ -1,9 +1,8 @@
 from datetime import datetime
 
+from app.core.database.base import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database.base import Base
 
 
 class Notification(Base):
@@ -11,7 +10,8 @@ class Notification(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="SET NULL"),
+                                                        nullable=True)
     title: Mapped[str] = mapped_column(String(255))
     body: Mapped[str] = mapped_column(String(2048))
     category: Mapped[str] = mapped_column(String(32), default="info")

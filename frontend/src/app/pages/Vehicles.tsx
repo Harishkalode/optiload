@@ -42,9 +42,12 @@ export function Vehicles() {
   const [vehicleTypeOpts, setVehicleTypeOpts] = useState<{ value: string; label: string }[]>([]);
 
   const loadVehicles = async () => {
-    const apiVehicles = await listVehicles();
-    setVehicles(apiVehicles);
-  };
+      const res = await listVehicles();
+      // The backend returns a paginated envelope {items, total, ...}
+      // but vehicleService types it as ApiVehicle[]. Unwrap defensively.
+      const arr = Array.isArray(res) ? res : (res as any).items ?? [];
+      setVehicles(arr);
+    };
 
   useEffect(() => {
     void loadVehicles();

@@ -1,11 +1,10 @@
 """Central permission names and RBAC helpers (server is authoritative; never trust client role)."""
 
-from sqlalchemy import select
-
 from app.core.utils.errors import AppError
 from app.modules.permissions.model import Permission
 from app.modules.roles.model import UserPermissionOverride
 from app.modules.users.model import User
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 

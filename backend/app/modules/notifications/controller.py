@@ -1,20 +1,19 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-
 from app.core.database.session import get_db
 from app.core.middlewares.auth import get_current_user
 from app.core.utils.errors import AppError
 from app.core.utils.responses import success_response
 from app.modules.notifications.repository import NotificationRepository
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 @router.get("")
 def list_notifications(
-    unread_only: bool = Query(default=False),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+        unread_only: bool = Query(default=False),
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user),
 ):
     repo = NotificationRepository(db)
     items = repo.list_for_user(current_user.id, unread_only=unread_only)
@@ -36,9 +35,9 @@ def list_notifications(
 
 @router.patch("/{notification_id}/read")
 def mark_notification_read(
-    notification_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+        notification_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user),
 ):
     repo = NotificationRepository(db)
     if not repo.get_for_user(notification_id, current_user.id):

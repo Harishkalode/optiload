@@ -18,7 +18,7 @@ DEFAULT_JWT_SECRET_PLACEHOLDER = "replace-this-in-env-with-32-plus-characters"
 class Settings(BaseSettings):
     app_name: str = "OptiLoad"
     api_prefix: str = "/api/v1"
-    environment: str = "development"
+    environment: str = "local"
 
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/optiload"
 

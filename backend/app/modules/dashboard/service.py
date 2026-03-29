@@ -9,12 +9,12 @@ from app.modules.vehicles.repository import VehicleRepository
 
 class DashboardService:
     def __init__(
-        self,
-        load_repo: LoadRepository,
-        optimization_repo: OptimizationRepository,
-        audit_repo: AuditLogRepository,
-        vehicle_repo: VehicleRepository,
-        user_repo: UserRepository,
+            self,
+            load_repo: LoadRepository,
+            optimization_repo: OptimizationRepository,
+            audit_repo: AuditLogRepository,
+            vehicle_repo: VehicleRepository,
+            user_repo: UserRepository,
     ):
         self.load_repo = load_repo
         self.optimization_repo = optimization_repo
@@ -26,7 +26,8 @@ class DashboardService:
         loads = self.load_repo.list_by_org(organization_id)
         vehicles = self.vehicle_repo.list_by_org(organization_id)
         optimizations = self.optimization_repo.list_by_org(organization_id)
-        avg_eff = round(sum((o.efficiency_score or 0) for o in optimizations) / len(optimizations), 4) if optimizations else 0.0
+        avg_eff = round(sum((o.efficiency_score or 0) for o in optimizations) / len(optimizations),
+                        4) if optimizations else 0.0
         recent = optimizations[:12]
         trend = [{"index": i, "efficiency": round(o.efficiency_score or 0, 4)} for i, o in enumerate(reversed(recent))]
         return {
@@ -43,7 +44,7 @@ class DashboardService:
 
     def activity(self, organization_id: int) -> list[dict]:
         week_ago = datetime.utcnow() - timedelta(days=7)
-        logs = self.audit_repo.list_filtered(organization_id, date_from=week_ago, limit=20)
+        logs = self.audit_repo.list_filtered(organization_id, date_from=week_ago, limit=10)
         out = []
         for l in logs:
             user = self.user_repo.get_by_id(l.user_id)

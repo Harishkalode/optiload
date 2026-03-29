@@ -1,9 +1,8 @@
 from enum import Enum
 
+from app.core.database.base import Base
 from sqlalchemy import Enum as SAEnum, Float, ForeignKey, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database.base import Base
 
 
 class LoadType(str, Enum):

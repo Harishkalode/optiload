@@ -1,6 +1,5 @@
-from fastapi.responses import JSONResponse
-
 from app.core.config import settings
+from fastapi.responses import JSONResponse
 
 
 def attach_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> JSONResponse:

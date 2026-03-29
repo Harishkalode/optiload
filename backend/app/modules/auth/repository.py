@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
-
 from app.modules.auth.model import RefreshToken
 from app.modules.users.repository import UserRepository
+from sqlalchemy import select, update
 
 
 class AuthRepository(UserRepository):
