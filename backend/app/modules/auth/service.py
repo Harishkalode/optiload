@@ -44,8 +44,11 @@ class AuthService:
         return access_token, refresh_token
 
     def login(self, email: str, password: str, ip_address: str) -> dict:
+        # prevent email enumeration timing attack
+        fake_hash = "$2b$12$KIXQfakehashfakehashfakehashfakehashfakehash"
         user = self.repository.get_by_email(email)
-        if not user or not verify_password(password, user.password_hash):
+        password_hash = user.password_hash if user else fake_hash
+        if not user or not verify_password(password, password_hash):
             raise AppError("INVALID_CREDENTIALS", "Invalid email or password", status_code=401)
         if user.status != UserStatus.active:
             raise AppError("ACCOUNT_DISABLED", "This account is not active", status_code=403)
@@ -175,78 +178,79 @@ class AuthService:
 
         db = self.repository.db
         try:
-            organization = Organization(
-                name=payload["organization_name"],
-                status=OrganizationStatus.active,
-                plan_type=OrganizationPlanType.starter,
-            )
-            db.add(organization)
-            db.flush()
-
-            permissions = {
-                "users.manage": self._get_or_create_permission("users.manage", "users"),
-                "roles.manage": self._get_or_create_permission("roles.manage", "roles"),
-                "loads.manage": self._get_or_create_permission("loads.manage", "loads"),
-                "vehicles.manage": self._get_or_create_permission("vehicles.manage", "vehicles"),
-                "optimization.run": self._get_or_create_permission("optimization.run", "optimization"),
-                "audit.read": self._get_or_create_permission("audit.read", "audit"),
-            }
-
-            roles = {
-                "admin": self._get_or_create_org_role("admin"),
-                "sub_admin": self._get_or_create_org_role("sub_admin"),
-                "operator": self._get_or_create_org_role("operator"),
-                "viewer": self._get_or_create_org_role("viewer"),
-            }
-            roles["admin"].permissions = list(permissions.values())
-            roles["sub_admin"].permissions = [
-                permissions["users.manage"],
-                permissions["loads.manage"],
-                permissions["vehicles.manage"],
-                permissions["optimization.run"],
-                permissions["audit.read"],
-            ]
-            roles["operator"].permissions = [permissions["loads.manage"], permissions["optimization.run"]]
-            roles["viewer"].permissions = [permissions["audit.read"]]
-
-            user = User(
-                organization_id=organization.id,
-                name=payload["full_name"],
-                email=payload["email"],
-                password_hash=hash_password(payload["password"]),
-                role_id=roles["admin"].id,
-                status=UserStatus.active,
-            )
-            db.add(user)
-            db.flush()
-
-            db.add(
-                Vehicle(
-                    organization_id=organization.id,
-                    type=VehicleType.container,
-                    dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
-                    capacity=24000,
+            with db.begin():
+                organization = Organization(
+                    name=payload["organization_name"],
+                    status=OrganizationStatus.active,
+                    plan_type=OrganizationPlanType.starter,
                 )
-            )
-            db.add(
-                Load(
-                    organization_id=organization.id,
-                    type=LoadType.cube,
-                    dimensions={"length": 100, "width": 100, "height": 100},
-                    weight=10,
-                    quantity=1,
-                )
-            )
-            db.add(
-                ApiKey(
-                    organization_id=organization.id,
-                    key_hash=hash_password(f"seed-{organization.id}"),
-                    permissions_json={"scope": "default"},
-                )
-            )
+                db.add(organization)
+                db.flush()
 
-            db.commit()
-            db.refresh(user)
+                permissions = {
+                    "users.manage": self._get_or_create_permission("users.manage", "users"),
+                    "roles.manage": self._get_or_create_permission("roles.manage", "roles"),
+                    "loads.manage": self._get_or_create_permission("loads.manage", "loads"),
+                    "vehicles.manage": self._get_or_create_permission("vehicles.manage", "vehicles"),
+                    "optimization.run": self._get_or_create_permission("optimization.run", "optimization"),
+                    "audit.read": self._get_or_create_permission("audit.read", "audit"),
+                }
+
+                roles = {
+                    "admin": self._get_or_create_org_role("admin"),
+                    "sub_admin": self._get_or_create_org_role("sub_admin"),
+                    "operator": self._get_or_create_org_role("operator"),
+                    "viewer": self._get_or_create_org_role("viewer"),
+                }
+                roles["admin"].permissions = list(permissions.values())
+                roles["sub_admin"].permissions = [
+                    permissions["users.manage"],
+                    permissions["loads.manage"],
+                    permissions["vehicles.manage"],
+                    permissions["optimization.run"],
+                    permissions["audit.read"],
+                ]
+                roles["operator"].permissions = [permissions["loads.manage"], permissions["optimization.run"]]
+                roles["viewer"].permissions = [permissions["audit.read"]]
+
+                user = User(
+                    organization_id=organization.id,
+                    name=payload["full_name"],
+                    email=payload["email"],
+                    password_hash=hash_password(payload["password"]),
+                    role_id=roles["admin"].id,
+                    status=UserStatus.active,
+                )
+                db.add(user)
+                db.flush()
+
+                db.add(
+                    Vehicle(
+                        organization_id=organization.id,
+                        type=VehicleType.container,
+                        dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
+                        capacity=24000,
+                    )
+                )
+                db.add(
+                    Load(
+                        organization_id=organization.id,
+                        type=LoadType.cube,
+                        dimensions={"length": 100, "width": 100, "height": 100},
+                        weight=10,
+                        quantity=1,
+                    )
+                )
+                db.add(
+                    ApiKey(
+                        organization_id=organization.id,
+                        key_hash=hash_password(f"seed-{organization.id}"),
+                        permissions_json={"scope": "default"},
+                    )
+                )
+
+                db.commit()
+                db.refresh(user)
         except IntegrityError as exc:
             db.rollback()
             raise AppError("REGISTRATION_FAILED", "Organization registration failed", status_code=409) from exc

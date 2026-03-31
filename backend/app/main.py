@@ -23,6 +23,9 @@ logger = logging.getLogger("optiload")
 
 def create_app() -> FastAPI:
     application = FastAPI(title=settings.app_name)
+    # config validation (add this)
+    if "*" in settings.cors_allowed_origins and settings.allow_credentials:
+        raise ValueError("CORS misconfiguration: '*' not allowed with credentials")
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
@@ -94,6 +97,10 @@ def on_startup() -> None:
 
     db = SessionLocal()
     try:
-        AuthService(AuthRepository(db), AuditLogService(AuditLogRepository(db))).bootstrap_super_admin()
+        if settings.bootstrap_super_admin_enabled:
+            AuthService(
+                AuthRepository(db),
+                AuditLogService(AuditLogRepository(db))
+            ).bootstrap_super_admin()
     finally:
         db.close()
