@@ -1,4 +1,5 @@
 import logging
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,12 +7,13 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes.v1 import api_router
-from app.core.config import DEFAULT_JWT_SECRET_PLACEHOLDER, settings
+from app.core.config import _DEFAULT_JWT_SECRET, settings
 from app.core.middlewares.rate_limit import RateLimitMiddleware
 from app.core.middlewares.request_size import MaxBodySizeMiddleware
 from app.core.middlewares.safe_logging import AccessLogMiddleware
 from app.core.middlewares.security_headers import SecurityHeadersMiddleware
 from app.core.utils.responses import error_response
+
 # Import models to register metadata
 from app.modules.audit_logs.repository import AuditLogRepository
 from app.modules.audit_logs.service import AuditLogService
@@ -22,38 +24,65 @@ logger = logging.getLogger("optiload")
 
 
 def create_app() -> FastAPI:
-    application = FastAPI(title=settings.app_name)
-    # config validation (add this)
-    if "*" in settings.cors_allowed_origins and settings.allow_credentials:
-        raise ValueError("CORS misconfiguration: '*' not allowed with credentials")
+    application = FastAPI(
+        title=settings.app_name,
+        docs_url="/docs" if settings.enable_api_docs else None,
+        redoc_url="/redoc" if settings.enable_api_docs else None,
+        openapi_url="/openapi.json" if settings.enable_api_docs else None,
+    )
+
+    if "*" in settings.cors_allowed_origins and settings.is_production:
+        raise ValueError("CORS misconfiguration: wildcard not allowed in production")
+
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID", "X-API-Key"],
     )
     application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
     application.add_middleware(SecurityHeadersMiddleware)
     application.add_middleware(MaxBodySizeMiddleware)
     application.add_middleware(RateLimitMiddleware)
-    if settings.debug_logging:
+
+    if settings.csrf_enabled:
+        from app.core.middlewares.csrf import CSRFMiddleware
+
+        application.add_middleware(CSRFMiddleware)
+
+    from app.core.middlewares.request_id import RequestIDMiddleware
+
+    application.add_middleware(RequestIDMiddleware)
+
+    if settings.enable_query_counter:
+        from app.core.middlewares.query_counter import QueryCounterMiddleware
+
+        application.add_middleware(QueryCounterMiddleware)
+
+    if settings.access_log_enabled:
         application.add_middleware(AccessLogMiddleware)
+
+    from app.core.middlewares.api_key_auth import APIKeyAuthMiddleware
+
+    application.add_middleware(APIKeyAuthMiddleware)
+
     application.include_router(api_router, prefix=settings.api_prefix)
 
     @application.exception_handler(HTTPException)
     async def http_exception_handler(_: Request, exc: HTTPException):
-        if isinstance(exc.detail, dict) and "code" in exc.detail:
-            payload = error_response(exc.detail["code"], exc.detail.get("message", "Request error"))
-        elif settings.expose_detailed_http_errors:
-            payload = error_response("HTTP_ERROR", str(exc.detail))
+        detail = exc.detail
+        if isinstance(detail, dict) and "code" in detail:
+            payload = error_response(detail["code"], detail.get("message", "Request error"))
+        elif settings.expose_detailed_errors:
+            payload = error_response("HTTP_ERROR", str(detail))
         else:
             payload = error_response("HTTP_ERROR", "Request could not be processed")
         return JSONResponse(status_code=exc.status_code, content=payload)
 
     @application.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, __: RequestValidationError):
-        message = "Invalid request" if not settings.expose_detailed_http_errors else "Validation failed"
+        message = "Invalid request" if not settings.expose_detailed_errors else "Validation failed"
         return JSONResponse(
             status_code=422,
             content=error_response("VALIDATION_ERROR", message),
@@ -87,7 +116,7 @@ app = create_app()
 
 @app.on_event("startup")
 def on_startup() -> None:
-    if settings.is_production and settings.jwt_secret_key == DEFAULT_JWT_SECRET_PLACEHOLDER:
+    if settings.is_production and settings.jwt_secret_key == _DEFAULT_JWT_SECRET:
         raise RuntimeError("OPTILOAD_JWT_SECRET_KEY must be set to a unique secret in production")
 
     if settings.is_production and settings.allow_public_registration:
@@ -100,7 +129,7 @@ def on_startup() -> None:
         if settings.bootstrap_super_admin_enabled:
             AuthService(
                 AuthRepository(db),
-                AuditLogService(AuditLogRepository(db))
+                AuditLogService(AuditLogRepository(db)),
             ).bootstrap_super_admin()
     finally:
         db.close()

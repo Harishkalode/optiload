@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X, CheckCircle2, AlertTriangle, Info, XCircle, Truck, CheckCheck, Trash2, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useTheme } from '../contexts/ThemeContext';
-import { fetchNotifications, markNotificationRead, type NotificationRow } from '../services/domainApi';
+import { fetchNotifications, markNotificationRead, markAllNotificationsRead, type NotificationRow } from '../services/domainApi';
 import { formatRelativeTime } from '../lib/time';
 
 type FilterTab = 'all' | 'unread';
@@ -76,9 +76,10 @@ export function NotificationCenter({ open, onClose, anchorRef }: { open: boolean
   };
 
   const markAllRead = async () => {
-    const unread = rows.filter(n => !n.read_at);
-    await Promise.all(unread.map(n => markNotificationRead(n.id).catch(() => undefined)));
-    setRows(prev => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
+    try {
+      await markAllNotificationsRead();
+      setRows(prev => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
+    } catch { /* ignore */ }
   };
 
   const removeLocal = (id: number) => {
@@ -279,7 +280,7 @@ export function NotificationCenter({ open, onClose, anchorRef }: { open: boolean
                 <div className="flex flex-col items-center justify-center py-16">
                   <Bell size={32} style={{ color: isDark ? '#1E2A38' : '#E2E8F0', marginBottom: 12 }} />
                   <div style={{ fontSize: 13, color: tx, fontWeight: 500 }}>{activeTab === 'unread' ? 'All caught up!' : 'No notifications'}</div>
-                  <div style={{ fontSize: 11, color: isDark ? '#374151' : '#CBD5E1', marginTop: 4 }}>GET /notifications</div>
+                  <div style={{ fontSize: 11, color: isDark ? '#374151' : '#CBD5E1', marginTop: 4 }}>No new notifications</div>
                 </div>
               )}
             </div>

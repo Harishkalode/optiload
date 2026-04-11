@@ -168,3 +168,4 @@ demo.py
 node_modules
 dist
 .git
+GUIDELINES.md

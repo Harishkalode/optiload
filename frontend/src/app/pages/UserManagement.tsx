@@ -45,6 +45,8 @@ export function UserManagement() {
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedUser, setSelectedUser] = useState<OrgUser | null>(null);
+  const [editRole, setEditRole] = useState<number | null>(null);
+  const [savingUser, setSavingUser] = useState(false);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -114,7 +116,7 @@ export function UserManagement() {
     await createUser({
       name: newUser.name,
       email: newUser.email,
-      password: 'TempPassword123!',
+      password: newUser.email.split('@')[0] + '!2026',
       role_id: newUser.roleId,
     });
     await loadUsers(roles);
@@ -143,12 +145,6 @@ export function UserManagement() {
             {loading ? <p style={{ fontSize: 12, color: text, marginTop: 6 }}>Loading users from backend...</p> : null}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              className="flex items-center gap-2 rounded-lg px-4 py-2 transition-all"
-              style={{ background: cardBg, border: `1px solid ${border}`, color: text, fontSize: 13, cursor: 'pointer' }}
-            >
-              <Download size={14} /> Export
-            </button>
             <button
               onClick={() => setShowAddUser(true)}
               className="flex items-center gap-2 rounded-lg px-4 py-2 transition-all"
@@ -257,7 +253,7 @@ export function UserManagement() {
                     <td style={{ padding: '12px 16px' }}>
                       <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={() => setSelectedUser(user)}
+                    onClick={() => { setSelectedUser(user); setEditRole(null); }}
                           className="rounded px-2 py-1"
                           style={{ fontSize: 11, background: palette.primary + '15', color: palette.primary, border: `1px solid ${palette.primary}30`, cursor: 'pointer' }}
                         >
@@ -329,7 +325,8 @@ export function UserManagement() {
                   Assign Role
                 </label>
                 <select
-                  defaultValue={selectedUser.role}
+                  value={editRole ?? selectedUser.role}
+                  onChange={e => setEditRole(Number(e.target.value))}
                   style={{ ...inputStyle, background: bg }}
                 >
                   {roles.map(r => (
@@ -386,9 +383,24 @@ export function UserManagement() {
             <div className="p-4 space-y-2" style={{ borderTop: `1px solid ${border}` }}>
               <button
                 className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 transition-all"
-                style={{ background: palette.primary, color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                style={{ background: palette.primary, color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', opacity: savingUser ? 0.6 : 1 }}
+                disabled={savingUser}
+                onClick={async () => {
+                  if (editRole === null) { toast.info('No changes to save'); return; }
+                  setSavingUser(true);
+                  try {
+                    await updateUser({ id: selectedUser.id, role_id: editRole });
+                    setSelectedUser(prev => prev ? { ...prev, role: roles.find(r => r.id === editRole)?.name || prev.role } : null);
+                    setEditRole(null);
+                    toast.success('User role updated');
+                  } catch {
+                    toast.error('Failed to update user role');
+                  } finally {
+                    setSavingUser(false);
+                  }
+                }}
               >
-                Save Changes
+                {savingUser ? 'Saving...' : 'Save Changes'}
               </button>
               <button
                 onClick={() => toggleStatus(selectedUser.id)}

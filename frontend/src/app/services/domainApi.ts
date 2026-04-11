@@ -101,6 +101,10 @@ export function markNotificationRead(id: number) {
   return apiRequest<{ id: number; updated: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' });
 }
 
+export function markAllNotificationsRead() {
+  return apiRequest<{ updated: number }>('/notifications/read-all', { method: 'PATCH' });
+}
+
 export function fetchVehicles(page = 1, pageSize = 100) {
   return apiRequest<Paginated<VehicleRow>>(`/vehicles?page=${page}&page_size=${pageSize}`);
 }
@@ -109,10 +113,10 @@ export function fetchLoads(page = 1, pageSize = 100) {
   return apiRequest<Paginated<LoadRow>>(`/loads?page=${page}&page_size=${pageSize}`);
 }
 
-export function runOptimization(vehicle_id: number, load_ids: number[]) {
+export function runOptimization(vehicle_id: number, loads: { load_id: number; quantity: number }[], constraints?: Record<string, boolean>) {
   return apiRequest<{ id: number; status: string }>('/optimization/run', {
     method: 'POST',
-    body: JSON.stringify({ vehicle_id, load_ids }),
+    body: JSON.stringify({ vehicle_id, loads, constraints }),
   });
 }
 

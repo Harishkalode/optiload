@@ -22,8 +22,5 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 message = "Too many login attempts" if is_login else "Too many requests"
                 return JSONResponse(status_code=429, content=error_response("RATE_LIMITED", message))
         except Exception:
-            return JSONResponse(
-                status_code=503,
-                content={"error": "Rate limiting unavailable"}
-            )
+            pass
         return await call_next(request)

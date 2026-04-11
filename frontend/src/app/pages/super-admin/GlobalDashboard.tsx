@@ -33,48 +33,6 @@ const makeTimeSeries = (base: number, variance: number, pts = 20) =>
     v: Math.max(0, base + Math.sin(i * 0.6) * variance + (Math.random() - 0.5) * variance * 0.4),
   }));
 
-const API_DATA = makeTimeSeries(840, 120);
-const ERROR_DATA = makeTimeSeries(1.2, 0.6);
-const LOAD_DATA = makeTimeSeries(62, 18);
-const QUEUE_DATA = makeTimeSeries(14, 8);
-
-const KPI_CARDS = [
-  { label: 'Total Organizations', value: '48', sub: '+3 this month', icon: Building2, color: SA.cyan, trend: makeTimeSeries(44, 4) },
-  { label: 'Active Users', value: '1,247', sub: '94.2% online rate', icon: Users, color: SA.blue, trend: makeTimeSeries(1200, 60) },
-  { label: 'Active Opt. Jobs', value: '73', sub: '12 queued', icon: Cpu, color: SA.purple, trend: makeTimeSeries(65, 15) },
-  { label: 'System Load', value: '62%', sub: 'Nominal range', icon: Activity, color: SA.green, trend: LOAD_DATA },
-  { label: 'Error Rate', value: '1.2%', sub: '↓ from 2.1%', icon: AlertTriangle, color: SA.amber, trend: ERROR_DATA },
-];
-
-const LIVE_FEED = [
-  { id: 1, user: 'S. Mitchell', org: 'RailCorp Inc.', action: 'ran optimization job OPT-2941', time: '8s ago', type: 'job' },
-  { id: 2, user: 'J. Chen', org: 'LogiTrans', action: 'created vehicle V-091', time: '23s ago', type: 'create' },
-  { id: 3, user: 'A. Patel', org: 'FreightCo', action: 'exported compliance report', time: '1m ago', type: 'export' },
-  { id: 4, user: 'System', org: 'Platform', action: 'worker pool auto-scaled to 8 instances', time: '2m ago', type: 'system' },
-  { id: 5, user: 'R. Kim', org: 'MidWest Rail', action: 'uploaded bulk loads (312 items)', time: '4m ago', type: 'create' },
-  { id: 6, user: 'E. Watson', org: 'RailCorp Inc.', action: 'modified role permissions for Rail Planner', time: '6m ago', type: 'security' },
-  { id: 7, user: 'System', org: 'Platform', action: 'failed login attempt blocked (IP: 185.45.72.3)', time: '9m ago', type: 'security' },
-  { id: 8, user: 'M. Torres', org: 'National Rail', action: 'exported 47 optimization results', time: '12m ago', type: 'export' },
-];
-
-const HEALTH_METRICS = [
-  { label: 'API Response (avg)', value: '142ms', status: 'ok', target: '<200ms' },
-  { label: 'Worker Utilization', value: '62%', status: 'ok', target: '<80%' },
-  { label: 'Job Failure Rate', value: '1.2%', status: 'warn', target: '<1%' },
-  { label: 'Queue Length', value: '14', status: 'ok', target: '<50' },
-  { label: 'DB Query Time', value: '38ms', status: 'ok', target: '<100ms' },
-  { label: 'Cache Hit Rate', value: '94.7%', status: 'ok', target: '>90%' },
-];
-
-const OPT_JOBS = [
-  { id: 'OPT-2941', org: 'RailCorp Inc.', status: 'running', progress: 67, vehicles: 6, loads: 214 },
-  { id: 'OPT-2940', org: 'LogiTrans', status: 'running', progress: 91, vehicles: 3, loads: 98 },
-  { id: 'OPT-2939', org: 'FreightCo', status: 'completed', progress: 100, vehicles: 8, loads: 312 },
-  { id: 'OPT-2938', org: 'MidWest Rail', status: 'failed', progress: 34, vehicles: 4, loads: 127 },
-  { id: 'OPT-2937', org: 'National Rail', status: 'queued', progress: 0, vehicles: 5, loads: 180 },
-  { id: 'OPT-2936', org: 'RailCorp Inc.', status: 'completed', progress: 100, vehicles: 2, loads: 66 },
-];
-
 const STATUS_DOT: Record<string, string> = {
   running: SA.blue,
   completed: SA.green,

@@ -9,6 +9,16 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
+@router.patch("/read-all")
+def mark_all_notifications_read(
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user),
+):
+    repo = NotificationRepository(db)
+    count = repo.mark_all_read(current_user.id)
+    return success_response({"updated": count})
+
+
 @router.get("")
 def list_notifications(
         unread_only: bool = Query(default=False),

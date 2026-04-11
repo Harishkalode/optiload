@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchUsersGlobal, fetchOrganizations } from '../../services/domainApi';
+import { apiRequest } from '../../services/http';
 import {
   Users, Search, Filter, Ban, RefreshCw, Eye, X,
-  Building2, Shield, Clock, Activity, AlertTriangle,
-  CheckCircle2, UserX, Key, MoreVertical
+  Building2, Shield, Clock, UserCheck, UserX, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 
 const SA = {
   bg: '#060A0F', card: '#0D1520', cardAlt: '#0A1018', border: '#162032',
@@ -53,6 +54,18 @@ export function GlobalUsers() {
   const [filterOrg, setFilterOrg] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selected, setSelected] = useState<GlobalUser | null>(null);
+  const [roles, setRoles] = useState<Map<number, string>>(new Map());
+
+  useEffect(() => {
+    let c = false;
+    (async () => {
+      try {
+        const r = await apiRequest<{ id: number; name: string }[]>('/roles');
+        if (!c) setRoles(new Map(r.map(r => [r.id, r.name])));
+      } catch { /* ignore */ }
+    })();
+    return () => { c = true; };
+  }, []);
 
   useEffect(() => {
     let c = false;
@@ -65,10 +78,10 @@ export function GlobalUsers() {
         const names = new Map(orgsRaw.map(o => [o.id, o.name]));
         setAllUsers(
           page.items.map(u => ({
-            id: `U-${u.id}`,
+            id: String(u.id),
             name: u.name,
             email: u.email,
-            role: `Role #${u.role_id}`,
+            role: roles.get(u.role_id) || `Role #${u.role_id}`,
             org: u.organization_id != null ? names.get(u.organization_id) ?? `Org ${u.organization_id}` : 'Platform',
             orgId: u.organization_id != null ? `ORG-${u.organization_id}` : '—',
             status: u.status === 'disabled' ? 'suspended' : u.status === 'invited' ? 'invited' : 'active',
@@ -86,7 +99,7 @@ export function GlobalUsers() {
     return () => {
       c = true;
     };
-  }, []);
+  }, [roles]);
 
   const orgs = useMemo(() => Array.from(new Set(allUsers.map(u => u.org))), [allUsers]);
 
@@ -216,7 +229,7 @@ export function GlobalUsers() {
                   <td style={{ padding: '11px 14px' }}>
                     {u.mfa
                       ? <CheckCircle2 size={14} style={{ color: SA.green }} />
-                      : <AlertTriangle size={14} style={{ color: SA.amber }} />}
+                      : <Shield size={14} style={{ color: SA.amber }} />}
                   </td>
                   <td style={{ padding: '11px 14px', fontSize: 12, color: SA.text }}>{u.lastLogin}</td>
                   <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: SA.textPrimary }}>{u.jobs}</td>
@@ -226,12 +239,26 @@ export function GlobalUsers() {
                         View
                       </button>
                       {u.status === 'active' ? (
-                        <button onClick={e => e.stopPropagation()} className="rounded px-2 py-0.5 transition-all" style={{ fontSize: 11, background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, cursor: 'pointer' }}>
+                        <button onClick={async e => {
+                          e.stopPropagation();
+                          try {
+                            await apiRequest(`/users/${u.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'disabled' }) });
+                            setAllUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'suspended' } : x));
+                            toast.success('User suspended');
+                          } catch { toast.error('Failed to suspend user'); }
+                        }} className="rounded px-2 py-0.5 transition-all" style={{ fontSize: 11, background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, cursor: 'pointer' }}>
                           Suspend
                         </button>
                       ) : u.status === 'suspended' ? (
-                        <button onClick={e => e.stopPropagation()} className="rounded px-2 py-0.5 transition-all" style={{ fontSize: 11, background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, cursor: 'pointer' }}>
-                          Restore
+                        <button onClick={async e => {
+                          e.stopPropagation();
+                          try {
+                            await apiRequest(`/users/${u.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'active' }) });
+                            setAllUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'active' } : x));
+                            toast.success('User activated');
+                          } catch { toast.error('Failed to activate user'); }
+                        }} className="rounded px-2 py-0.5 transition-all" style={{ fontSize: 11, background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, cursor: 'pointer' }}>
+                          Activate
                         </button>
                       ) : null}
                     </div>
@@ -311,20 +338,26 @@ export function GlobalUsers() {
               {/* Super Admin Actions */}
               <div className="space-y-2 pt-2">
                 <div style={{ fontSize: 11, color: SA.text, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Super Admin Actions</div>
-                <button className="w-full flex items-center gap-2 rounded-lg py-2 px-3 transition-all" style={{ background: SA.amber + '15', color: SA.amber, border: `1px solid ${SA.amber}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                  <Key size={13} /> Reset Access
-                </button>
-                {selected.status === 'active' ? (
-                  <button className="w-full flex items-center gap-2 rounded-lg py-2 px-3 transition-all" style={{ background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                    <UserX size={13} /> Suspend User
-                  </button>
-                ) : (
-                  <button className="w-full flex items-center gap-2 rounded-lg py-2 px-3 transition-all" style={{ background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                    <CheckCircle2 size={13} /> Restore User
-                  </button>
-                )}
-                <button className="w-full flex items-center gap-2 rounded-lg py-2 px-3 transition-all" style={{ background: SA.blue + '15', color: SA.blue, border: `1px solid ${SA.blue}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                  <Activity size={13} /> View Full Activity
+                <button
+                  onClick={async () => {
+                    const newStatus = selected.status === 'active' ? 'disabled' : 'active';
+                    try {
+                      await apiRequest(`/users/${selected.id.replace('U-', '')}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+                      const updated = { ...selected, status: newStatus === 'disabled' ? 'suspended' : 'active' };
+                      setSelected(updated);
+                      setAllUsers(prev => prev.map(x => x.id === selected.id ? updated : x));
+                      toast.success(newStatus === 'disabled' ? 'User suspended' : 'User activated');
+                    } catch { toast.error('Failed to update user status'); }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg py-2 px-3 transition-all"
+                  style={{
+                    background: selected.status === 'active' ? SA.red + '15' : SA.green + '15',
+                    color: selected.status === 'active' ? SA.red : SA.green,
+                    border: `1px solid ${selected.status === 'active' ? SA.red + '30' : SA.green + '30'}`,
+                    fontSize: 13, cursor: 'pointer', fontWeight: 500,
+                  }}
+                >
+                  {selected.status === 'active' ? <><UserX size={13} /> Suspend User</> : <><UserCheck size={13} /> Activate User</>}
                 </button>
               </div>
             </div>

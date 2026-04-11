@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { fetchOrganizations, fetchUsersGlobal } from '../../services/domainApi';
+import { apiRequest } from '../../services/http';
 import {
   Building2, Search, Filter, MoreVertical, Users, Cpu,
   CheckCircle2, XCircle, AlertTriangle, ChevronRight,
   Globe, TrendingUp, Package, X, Eye, Ban, Activity,
-  Calendar, Zap
+  Calendar, Zap, UserCheck, UserX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 
 const SA = {
   bg: '#060A0F', card: '#0D1520', cardAlt: '#0A1018', border: '#162032',
@@ -241,13 +243,29 @@ export function OrganizationsManagement() {
                       <button onClick={e => { e.stopPropagation(); setSelected(org); }} className="rounded px-2 py-1 transition-all" style={{ fontSize: 11, background: SA.blue + '15', color: SA.blue, border: `1px solid ${SA.blue}30`, cursor: 'pointer' }}>
                         View
                       </button>
-                      {org.status !== 'suspended' ? (
-                        <button onClick={e => e.stopPropagation()} className="rounded px-2 py-1 transition-all" style={{ fontSize: 11, background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, cursor: 'pointer' }}>
+                      {org.status === 'active' ? (
+                        <button onClick={async e => {
+                          e.stopPropagation();
+                          try {
+                            const oid = Number(org.id.replace('ORG-', ''));
+                            await apiRequest(`/organizations/${oid}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'suspended' }) });
+                            setOrgs(prev => prev.map(o => o.id === org.id ? { ...o, status: 'suspended' } : o));
+                            toast.success('Organization suspended');
+                          } catch { toast.error('Failed to suspend organization'); }
+                        }} className="rounded px-2 py-1 transition-all" style={{ fontSize: 11, background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, cursor: 'pointer' }}>
                           Suspend
                         </button>
                       ) : (
-                        <button onClick={e => e.stopPropagation()} className="rounded px-2 py-1 transition-all" style={{ fontSize: 11, background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, cursor: 'pointer' }}>
-                          Restore
+                        <button onClick={async e => {
+                          e.stopPropagation();
+                          try {
+                            const oid = Number(org.id.replace('ORG-', ''));
+                            await apiRequest(`/organizations/${oid}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'active' }) });
+                            setOrgs(prev => prev.map(o => o.id === org.id ? { ...o, status: 'active' } : o));
+                            toast.success('Organization activated');
+                          } catch { toast.error('Failed to activate organization'); }
+                        }} className="rounded px-2 py-1 transition-all" style={{ fontSize: 11, background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, cursor: 'pointer' }}>
+                          Activate
                         </button>
                       )}
                     </div>
@@ -320,17 +338,31 @@ export function OrganizationsManagement() {
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: SA.text, marginTop: 4 }}>Admin: <span style={{ color: SA.textPrimary, fontWeight: 600 }}>{selected.admin}</span></div>
+                {/* Suspend/Activate */}
                 <div className="flex gap-2 pt-2">
-                  <button className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 transition-all" style={{ background: SA.blue + '15', color: SA.blue, border: `1px solid ${SA.blue}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                    <Activity size={13} /> View Activity
-                  </button>
-                  {selected.status !== 'suspended' ? (
-                    <button className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 transition-all" style={{ background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+                  {selected.status === 'active' ? (
+                    <button onClick={async () => {
+                      try {
+                        const oid = Number(selected.id.replace('ORG-', ''));
+                        await apiRequest(`/organizations/${oid}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'suspended' }) });
+                        setSelected(prev => prev ? { ...prev, status: 'suspended' } : null);
+                        setOrgs(prev => prev.map(o => o.id === selected.id ? { ...o, status: 'suspended' } : o));
+                        toast.success('Organization suspended');
+                      } catch { toast.error('Failed to suspend organization'); }
+                    }} className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 transition-all" style={{ background: SA.red + '15', color: SA.red, border: `1px solid ${SA.red}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
                       <Ban size={13} /> Suspend
                     </button>
                   ) : (
-                    <button className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 transition-all" style={{ background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
-                      <CheckCircle2 size={13} /> Restore
+                    <button onClick={async () => {
+                      try {
+                        const oid = Number(selected.id.replace('ORG-', ''));
+                        await apiRequest(`/organizations/${oid}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'active' }) });
+                        setSelected(prev => prev ? { ...prev, status: 'active' } : null);
+                        setOrgs(prev => prev.map(o => o.id === selected.id ? { ...o, status: 'active' } : o));
+                        toast.success('Organization activated');
+                      } catch { toast.error('Failed to activate organization'); }
+                    }} className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2 transition-all" style={{ background: SA.green + '15', color: SA.green, border: `1px solid ${SA.green}30`, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+                      <CheckCircle2 size={13} /> Activate
                     </button>
                   )}
                 </div>

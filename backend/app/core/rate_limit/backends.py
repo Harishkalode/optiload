@@ -47,6 +47,7 @@ class MemoryRateLimiter:
         now = time.time()
         bucket = self._login[ip] if is_login else self._general[ip]
         limit = settings.auth_login_rate_limit_per_minute if is_login else settings.rate_limit_per_minute
+        assert limit is not None
         while bucket and now - bucket[0] > WINDOW_SECONDS:
             bucket.popleft()
         if len(bucket) >= limit:
@@ -70,6 +71,7 @@ class RedisRateLimiter:
 
     async def check(self, *, ip: str, is_login: bool) -> RateLimitDecision:
         limit = settings.auth_login_rate_limit_per_minute if is_login else settings.rate_limit_per_minute
+        assert limit is not None
         now_ms = time.time() * 1000.0
         member = f"{now_ms:.3f}:{token_hex(6)}"
         key = self._key(ip, is_login)

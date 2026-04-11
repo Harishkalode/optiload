@@ -14,6 +14,8 @@ import { InteriorControls } from '../components/vehicle-creator/InteriorControls
 import { ReviewPanel } from '../components/vehicle-creator/ReviewPanel';
 import { ValidationPanel } from '../components/vehicle-creator/ValidationPanel';
 import { toast } from 'sonner';
+import { createVehicle } from '../services/vehicleService';
+import { units } from '../lib/units';
 
 export type VehicleType = 'boxcar' | 'flatcar' | 'gondola' | 'reefer';
 export type PlateType = 'A' | 'B' | 'C';
@@ -116,9 +118,33 @@ export function VehicleCreator() {
     }
   };
 
-  const handleSave = () => {
-    toast.success('Vehicle template saved successfully');
-    navigate('/vehicles');
+  const handleSave = async () => {
+    try {
+      const axlePositions = vehicle.bogies.flatMap(b =>
+        Array.from({ length: b.axleCount }, (_, i) =>
+          units.inToM((b.position / 100) * vehicle.length + (i * 63.5))
+        )
+      );
+      await createVehicle({
+        type: vehicle.type,
+        dimensions: {
+          length: units.inToM(vehicle.length),
+          width: units.inToM(vehicle.width),
+          height: units.inToM(vehicle.height),
+        },
+        capacity: units.lbToKg(vehicle.loadLimit),
+        tare_weight_kg: units.lbToKg(vehicle.emptyWeight),
+        plate_type: vehicle.plate,
+        truck_center_front: units.inToM((vehicle.bogies[0]?.position ?? 15) / 100 * vehicle.length),
+        truck_center_rear: units.inToM((vehicle.bogies[1]?.position ?? 85) / 100 * vehicle.length),
+        empty_cg_height_in: vehicle.height / 2,
+        axle_positions: axlePositions,
+      });
+      toast.success('Vehicle saved successfully');
+      navigate('/vehicles');
+    } catch {
+      toast.error('Failed to save vehicle');
+    }
   };
 
   const canUndo = historyIndex > 0;

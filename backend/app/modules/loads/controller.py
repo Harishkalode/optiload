@@ -17,7 +17,7 @@ def _service(db: Session) -> LoadService:
 
 
 @router.get("")
-def list_loads(page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=100),
+def list_loads(page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=200),
                db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     org_id = get_tenant_organization_id(current_user)
     if org_id is None:
@@ -27,8 +27,9 @@ def list_loads(page: int = Query(default=1, ge=1), page_size: int = Query(defaul
     sliced = loads[start: start + page_size]
     return success_response({"items": [
         {"id": l.id, "organization_id": l.organization_id, "type": l.type.value, "dimensions": l.dimensions,
-         "weight": l.weight, "quantity": l.quantity} for l in sliced], "total": len(loads), "page": page,
-                             "page_size": page_size})
+         "weight": l.weight, "quantity": l.quantity, "cg_x": l.cg_x, "cg_y": l.cg_y, "cg_z": l.cg_z,
+         "fragile": l.fragile, "stackable": l.stackable, "hazmat_class": l.hazmat_class, "diameter": l.diameter}
+        for l in sliced], "total": len(loads), "page": page, "page_size": page_size})
 
 
 @router.get("/{load_id}")
@@ -39,7 +40,8 @@ def get_load(load_id: int, db: Session = Depends(get_db), current_user=Depends(g
     l = _service(db).get_load(org_id, load_id)
     return success_response(
         {"id": l.id, "organization_id": l.organization_id, "type": l.type.value, "dimensions": l.dimensions,
-         "weight": l.weight, "quantity": l.quantity})
+         "weight": l.weight, "quantity": l.quantity, "cg_x": l.cg_x, "cg_y": l.cg_y, "cg_z": l.cg_z,
+         "fragile": l.fragile, "stackable": l.stackable, "hazmat_class": l.hazmat_class, "diameter": l.diameter})
 
 
 @router.post("")

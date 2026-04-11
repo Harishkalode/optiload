@@ -31,7 +31,7 @@ def _base_claims(minutes_from_now: float | None = None, days_from_now: float | N
     elif days_from_now is not None:
         exp = now + timedelta(days=days_from_now)
     else:
-        exp = now + timedelta(minutes=settings.jwt_access_token_minutes)
+        exp = now + timedelta(minutes=settings.jwt_access_token_minutes or 15)
     return {
         "exp": exp,
         "iat": now,
@@ -41,7 +41,7 @@ def _base_claims(minutes_from_now: float | None = None, days_from_now: float | N
 
 
 def create_access_token(subject: str, role: str | None = None, organization_id: int | None = None) -> str:
-    claims = _base_claims(minutes_from_now=settings.jwt_access_token_minutes)
+    claims = _base_claims(minutes_from_now=float(settings.jwt_access_token_minutes or 15))
     payload = {
         **claims,
         "sub": subject,

@@ -1,6 +1,9 @@
+import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
+from app.core.lockout import lockout_manager
 from app.core.security.password_policy import validate_password_strength
 from app.core.utils.errors import AppError
 from app.core.utils.security import (
@@ -23,11 +26,19 @@ from app.modules.vehicles.model import Vehicle, VehicleType
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
 
+logger = logging.getLogger("optiload.auth")
+
 
 class AuthService:
     def __init__(self, repository: AuthRepository, audit_log_service: AuditLogService):
         self.repository = repository
         self.audit_log_service = audit_log_service
+        self._lockout_initialized = False
+
+    async def _ensure_lockout_ready(self) -> None:
+        if not self._lockout_initialized:
+            await lockout_manager.initialize()
+            self._lockout_initialized = True
 
     @staticmethod
     def _role_label(role_name: str | None) -> str | None:
@@ -36,25 +47,56 @@ class AuthService:
     def _issue_token_pair(self, user: User) -> tuple[str, str]:
         role_name = user.role.name if user.role else None
         jti = new_refresh_jti()
-        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_days or 7)
         self.repository.create_refresh_token_row(user_id=user.id, jti=jti, expires_at=expires_at)
         access_token = create_access_token(str(user.id), role=role_name, organization_id=user.organization_id)
         refresh_token = create_refresh_token(str(user.id), jti)
         self.repository.db.commit()
         return access_token, refresh_token
 
-    def login(self, email: str, password: str, ip_address: str) -> dict:
-        # prevent email enumeration timing attack
+    def _requires_mfa(self, user: User) -> bool:
+        if not user.mfa_enabled:
+            return False
+        role_name = user.role.name if user.role else ""
+        required = settings.mfa_required_for_roles or []
+        return role_name in required
+
+    async def login(self, email: str, password: str, ip_address: str) -> dict:
         fake_hash = "$2b$12$KIXQfakehashfakehashfakehashfakehashfakehash"
         user = self.repository.get_by_email(email)
         password_hash = user.password_hash if user else fake_hash
+
         if not user or not verify_password(password, password_hash):
+            try:
+                await lockout_manager.record_failed_attempt(email)
+            except Exception as exc:
+                logger.warning("Lockout record failed: %s", exc)
             raise AppError("INVALID_CREDENTIALS", "Invalid email or password", status_code=401)
+
         if user.status != UserStatus.active:
             raise AppError("ACCOUNT_DISABLED", "This account is not active", status_code=403)
 
-        user.last_login = datetime.utcnow()
+        try:
+            if await lockout_manager.is_locked(email):
+                raise AppError("ACCOUNT_LOCKED", "Account temporarily locked. Try again later.", status_code=429)
+        except Exception as exc:
+            logger.warning("Lockout check failed: %s", exc)
+
+        try:
+            await lockout_manager.reset_attempts(email)
+        except Exception as exc:
+            logger.warning("Lockout reset failed: %s", exc)
+
+        user.last_login = datetime.now(timezone.utc)
         self.repository.db.commit()
+
+        if self._requires_mfa(user):
+            return {
+                "mfa_required": True,
+                "user_id": user.id,
+                "message": "MFA verification required",
+            }
+
         access_token, refresh_token = self._issue_token_pair(user)
 
         self.audit_log_service.record(
@@ -65,6 +107,47 @@ class AuthService:
             resource_id=str(user.id),
             metadata_json={"email": email},
             ip_address=ip_address,
+        )
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "role": self._role_label(user.role.name if user.role else None),
+                "organization_id": user.organization_id,
+            },
+        }
+
+    def verify_mfa_and_issue_tokens(self, user_id: int, mfa_code: str) -> dict:
+        user = self.repository.get_by_id(user_id)
+        if not user or user.status != UserStatus.active:
+            raise AppError("INVALID_CREDENTIALS", "Invalid user", status_code=401)
+
+        if not user.mfa_secret:
+            raise AppError("MFA_NOT_SETUP", "MFA not configured for this user", status_code=400)
+
+        try:
+            import pyotp
+        except ImportError:
+            raise AppError("MFA_ERROR", "MFA support not available", status_code=500)
+
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(mfa_code):
+            raise AppError("INVALID_MFA", "Invalid MFA code", status_code=401)
+
+        access_token, refresh_token = self._issue_token_pair(user)
+
+        self.audit_log_service.record(
+            user_id=user.id,
+            organization_id=user.organization_id,
+            action="auth.mfa_verified",
+            resource="user",
+            resource_id=str(user.id),
+            metadata_json={},
+            ip_address="internal",
         )
 
         return {
@@ -145,7 +228,76 @@ class AuthService:
             "status": user.status.value,
             "organization_id": user.organization_id,
             "role": self._role_label(user.role.name if user.role else None),
+            "mfa_enabled": user.mfa_enabled,
         }
+
+    def generate_mfa_secret(self, user: User) -> str:
+        try:
+            import pyotp
+        except ImportError:
+            raise AppError("MFA_ERROR", "MFA support not available", status_code=500)
+
+        secret = pyotp.random_base32()
+        user.mfa_secret = secret
+        self.repository.db.commit()
+        return secret
+
+    def enable_mfa(self, user: User, secret: str, verification_code: str) -> dict:
+        try:
+            import pyotp
+        except ImportError:
+            raise AppError("MFA_ERROR", "MFA support not available", status_code=500)
+
+        if user.mfa_secret != secret:
+            raise AppError("INVALID_MFA", "MFA secret mismatch", status_code=400)
+
+        totp = pyotp.TOTP(secret)
+        if not totp.verify(verification_code):
+            raise AppError("INVALID_MFA", "Invalid verification code", status_code=400)
+
+        user.mfa_enabled = True
+        self.repository.db.commit()
+
+        self.audit_log_service.record(
+            user_id=user.id,
+            organization_id=user.organization_id,
+            action="auth.mfa_enabled",
+            resource="user",
+            resource_id=str(user.id),
+            metadata_json={},
+            ip_address="internal",
+        )
+
+        return {"mfa_enabled": True}
+
+    def disable_mfa(self, user: User, verification_code: str) -> dict:
+        try:
+            import pyotp
+        except ImportError:
+            raise AppError("MFA_ERROR", "MFA support not available", status_code=500)
+
+        if not user.mfa_secret:
+            raise AppError("MFA_NOT_SETUP", "MFA not configured", status_code=400)
+
+        totp = pyotp.TOTP(user.mfa_secret)
+        if not totp.verify(verification_code):
+            raise AppError("INVALID_MFA", "Invalid verification code", status_code=400)
+
+        user.mfa_enabled = False
+        user.mfa_secret = None
+        self.repository.db.commit()
+
+        self.audit_log_service.record(
+            user_id=user.id,
+            organization_id=user.organization_id,
+            action="auth.mfa_disabled",
+            resource="user",
+            resource_id=str(user.id),
+            metadata_json={},
+            ip_address="internal",
+        )
+
+        return {"mfa_enabled": False}
 
     def _get_or_create_permission(self, name: str, category: str) -> Permission:
         db = self.repository.db
@@ -178,79 +330,78 @@ class AuthService:
 
         db = self.repository.db
         try:
-            with db.begin():
-                organization = Organization(
-                    name=payload["organization_name"],
-                    status=OrganizationStatus.active,
-                    plan_type=OrganizationPlanType.starter,
-                )
-                db.add(organization)
-                db.flush()
+            organization = Organization(
+                name=payload["organization_name"],
+                status=OrganizationStatus.active,
+                plan_type=OrganizationPlanType.starter,
+            )
+            db.add(organization)
+            db.flush()
 
-                permissions = {
-                    "users.manage": self._get_or_create_permission("users.manage", "users"),
-                    "roles.manage": self._get_or_create_permission("roles.manage", "roles"),
-                    "loads.manage": self._get_or_create_permission("loads.manage", "loads"),
-                    "vehicles.manage": self._get_or_create_permission("vehicles.manage", "vehicles"),
-                    "optimization.run": self._get_or_create_permission("optimization.run", "optimization"),
-                    "audit.read": self._get_or_create_permission("audit.read", "audit"),
-                }
+            permissions = {
+                "users.manage": self._get_or_create_permission("users.manage", "users"),
+                "roles.manage": self._get_or_create_permission("roles.manage", "roles"),
+                "loads.manage": self._get_or_create_permission("loads.manage", "loads"),
+                "vehicles.manage": self._get_or_create_permission("vehicles.manage", "vehicles"),
+                "optimization.run": self._get_or_create_permission("optimization.run", "optimization"),
+                "audit.read": self._get_or_create_permission("audit.read", "audit"),
+            }
 
-                roles = {
-                    "admin": self._get_or_create_org_role("admin"),
-                    "sub_admin": self._get_or_create_org_role("sub_admin"),
-                    "operator": self._get_or_create_org_role("operator"),
-                    "viewer": self._get_or_create_org_role("viewer"),
-                }
-                roles["admin"].permissions = list(permissions.values())
-                roles["sub_admin"].permissions = [
-                    permissions["users.manage"],
-                    permissions["loads.manage"],
-                    permissions["vehicles.manage"],
-                    permissions["optimization.run"],
-                    permissions["audit.read"],
-                ]
-                roles["operator"].permissions = [permissions["loads.manage"], permissions["optimization.run"]]
-                roles["viewer"].permissions = [permissions["audit.read"]]
+            roles = {
+                "admin": self._get_or_create_org_role("admin"),
+                "sub_admin": self._get_or_create_org_role("sub_admin"),
+                "operator": self._get_or_create_org_role("operator"),
+                "viewer": self._get_or_create_org_role("viewer"),
+            }
+            roles["admin"].permissions = list(permissions.values())
+            roles["sub_admin"].permissions = [
+                permissions["users.manage"],
+                permissions["loads.manage"],
+                permissions["vehicles.manage"],
+                permissions["optimization.run"],
+                permissions["audit.read"],
+            ]
+            roles["operator"].permissions = [permissions["loads.manage"], permissions["optimization.run"]]
+            roles["viewer"].permissions = [permissions["audit.read"]]
 
-                user = User(
+            user = User(
+                organization_id=organization.id,
+                name=payload["full_name"],
+                email=payload["email"],
+                password_hash=hash_password(payload["password"]),
+                role_id=roles["admin"].id,
+                status=UserStatus.active,
+            )
+            db.add(user)
+            db.flush()
+
+            db.add(
+                Vehicle(
                     organization_id=organization.id,
-                    name=payload["full_name"],
-                    email=payload["email"],
-                    password_hash=hash_password(payload["password"]),
-                    role_id=roles["admin"].id,
-                    status=UserStatus.active,
+                    type=VehicleType.container,
+                    dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
+                    capacity=24000,
                 )
-                db.add(user)
-                db.flush()
+            )
+            db.add(
+                Load(
+                    organization_id=organization.id,
+                    type=LoadType.cube,
+                    dimensions={"length": 100, "width": 100, "height": 100},
+                    weight=10,
+                    quantity=1,
+                )
+            )
+            db.add(
+                ApiKey(
+                    organization_id=organization.id,
+                    key_hash=hash_password(f"seed-{organization.id}"),
+                    permissions_json={"scope": "default"},
+                )
+            )
 
-                db.add(
-                    Vehicle(
-                        organization_id=organization.id,
-                        type=VehicleType.container,
-                        dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
-                        capacity=24000,
-                    )
-                )
-                db.add(
-                    Load(
-                        organization_id=organization.id,
-                        type=LoadType.cube,
-                        dimensions={"length": 100, "width": 100, "height": 100},
-                        weight=10,
-                        quantity=1,
-                    )
-                )
-                db.add(
-                    ApiKey(
-                        organization_id=organization.id,
-                        key_hash=hash_password(f"seed-{organization.id}"),
-                        permissions_json={"scope": "default"},
-                    )
-                )
-
-                db.commit()
-                db.refresh(user)
+            db.commit()
+            db.refresh(user)
         except IntegrityError as exc:
             db.rollback()
             raise AppError("REGISTRATION_FAILED", "Organization registration failed", status_code=409) from exc

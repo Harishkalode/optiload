@@ -23,6 +23,7 @@ class User(Base):
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
     status: Mapped[UserStatus] = mapped_column(SAEnum(UserStatus), index=True, default=UserStatus.active)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
 

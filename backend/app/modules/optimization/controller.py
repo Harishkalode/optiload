@@ -11,6 +11,7 @@ from app.modules.optimization.validator import OptimizationRunRequest
 from app.modules.vehicles.repository import VehicleRepository
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+import traceback
 
 router = APIRouter(prefix="/optimization", tags=["optimization"])
 
@@ -26,7 +27,14 @@ def run_optimization(payload: OptimizationRunRequest, db: Session = Depends(get_
     org_id = get_tenant_organization_id(current_user)
     if org_id is None:
         raise AppError("ORG_REQUIRED", "organization context is required")
-    optimization = _service(db).run(org_id, payload.model_dump(), actor_user_id=current_user.id)
+    try:
+        optimization = _service(db).run(org_id, payload.model_dump(), actor_user_id=current_user.id)
+    except AppError:
+        raise
+    except Exception as e:
+        print(f"[OPTIMIZATION ERROR] {e}")
+        traceback.print_exc()
+        raise AppError("OPTIMIZATION_FAILED", str(e), status_code=500)
     return success_response({"id": optimization.id, "status": optimization.status.value})
 
 
@@ -78,3 +86,14 @@ def get_optimization_result(optimization_id: int, db: Session = Depends(get_db),
         raise AppError("FORBIDDEN", "Cross-tenant access denied", status_code=403)
     return success_response(
         {"id": optimization.id, "result": optimization.result_json, "efficiency_score": optimization.efficiency_score})
+
+
+@router.post("/{optimization_id}/autocorrect")
+def autocorrect_optimization(optimization_id: int, db: Session = Depends(get_db),
+                             current_user=Depends(get_current_user)):
+    require_permission(db, current_user, AppPermission.OPTIMIZATION_RUN)
+    org_id = get_tenant_organization_id(current_user)
+    if org_id is None:
+        raise AppError("ORG_REQUIRED", "organization context is required")
+    result = _service(db).autocorrect(optimization_id, org_id)
+    return success_response(result)

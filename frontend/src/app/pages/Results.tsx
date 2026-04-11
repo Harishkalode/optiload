@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   RotateCcw, Zap, Save, Download, RefreshCw,
@@ -14,6 +14,8 @@ import type { ConfidenceMetrics } from '../components/results/OptimizationConfid
 import type { ShockSimulationConfig, StressMetrics } from '../components/results/ShockSimulationPanel';
 import type { LoadExplanation } from '../components/results/ExplainabilityPanel';
 import type { ScenarioData } from '../components/results/ScenarioComparisonPanel';
+import { MiniMap } from '../components/results/MiniMap';
+import { LoadInfoPanel, type LoadInfo } from '../components/results/LoadInfoPanel';
 import { toast } from 'sonner';
 import { fetchOptimizationResult, fetchOptimizationHistory } from '../services/domainApi';
 import { motion, AnimatePresence } from 'motion/react';
@@ -22,26 +24,12 @@ import {
   type EngineOutput, type CarConfig, type LoadItem,
 } from '../engine/AAREngine';
 
-// ── INITIAL DATA ────────────────────────────────────────────────────────────
-const INITIAL_LOADS: Load3D[] = [
-  { id:'L-0441', name:'Steel Coil Batch A',       weight:12400, volume:6.80,  fragile:false, priority:8,  customer:'SteelCorp Inc.',   compatScore:94, stackGroup:'A', rotationAllowed:false, x:0.3,  y:0,    z:0.3, w:2.1, h:1.8, d:2.2, color:'#3B82F6', hasViolation:false },
-  { id:'L-0442', name:'Automotive Parts Box',     weight:840,   volume:0.96,  fragile:true,  priority:6,  customer:'AutoTrans Co.',    compatScore:88, stackGroup:'B', rotationAllowed:true,  x:5.7,  y:1.88, z:0.4, w:1.2, h:1.0, d:0.8, color:'#8B5CF6', hasViolation:false },
-  { id:'L-0443', name:'Grain Bulk Unit',          weight:24000, volume:14.40, fragile:false, priority:9,  customer:'AgroTrans AG',     compatScore:97, stackGroup:'A', rotationAllowed:true,  x:2.7,  y:0,    z:0.3, w:3.0, h:2.0, d:2.4, color:'#10B981', hasViolation:false },
-  { id:'L-0444', name:'Chemical Drums Set',       weight:2200,  volume:1.20,  fragile:true,  priority:7,  customer:'ChemFreight Ltd.', compatScore:72, stackGroup:'C', rotationAllowed:false, x:7.9,  y:0,    z:0.4, w:1.0, h:1.2, d:1.0, color:'#F59E0B', hasViolation:true  },
-  { id:'L-0445', name:'Timber Planks Bundle',     weight:3600,  volume:1.20,  fragile:false, priority:4,  customer:'TimberLogix',     compatScore:91, stackGroup:'A', rotationAllowed:true,  x:9.2,  y:0,    z:0.3, w:4.0, h:0.5, d:0.6, color:'#EC4899', hasViolation:false },
-  { id:'L-0446', name:'Machinery Crate',          weight:18000, volume:7.68,  fragile:false, priority:10, customer:'HeavyMach Ltd.',  compatScore:96, stackGroup:'A', rotationAllowed:false, x:5.7,  y:0,    z:0.3, w:2.4, h:2.0, d:1.6, color:'#EF4444', hasViolation:false },
-  { id:'L-0447', name:'Electronics Pallets',      weight:1200,  volume:2.16,  fragile:true,  priority:8,  customer:'TechShip GmbH',   compatScore:85, stackGroup:'B', rotationAllowed:true,  x:13.2, y:0,    z:0.3, w:1.8, h:1.6, d:0.75,color:'#06B6D4', hasViolation:false },
-  { id:'L-0448', name:'Cement Bags Pallet',       weight:8000,  volume:2.88,  fragile:false, priority:5,  customer:'BuildMat Co.',    compatScore:90, stackGroup:'A', rotationAllowed:false, x:15.2, y:0,    z:0.3, w:1.6, h:1.8, d:1.0, color:'#84CC16', hasViolation:false },
-  { id:'L-0449', name:'Pharma Cold Box',          weight:420,   volume:0.48,  fragile:true,  priority:10, customer:'MedFreight AG',   compatScore:78, stackGroup:'B', rotationAllowed:false, x:13.2, y:1.65, z:0.3, w:0.8, h:0.6, d:1.0, color:'#F97316', hasViolation:true  },
-  { id:'L-0450', name:'Paper Rolls Stack',        weight:5800,  volume:6.00,  fragile:false, priority:6,  customer:'PaperWorld SA',   compatScore:93, stackGroup:'A', rotationAllowed:true,  x:17.2, y:0,    z:0.3, w:2.2, h:2.0, d:1.5, color:'#A855F7', hasViolation:false },
-];
-
 const EMPTY_TREND: { t: string; v: number }[] = [];
 
 // ── COMPUTE FUNCTIONS ───────────────────────────────────────────────────────
-function computeCoG(loads: Load3D[]) {
+function computeCoG(loads: Load3D[], carLength = 20, carWidth = 3.2) {
   const total = loads.reduce((a, l) => a + l.weight, 0);
-  if (total === 0) return { x: 10, y: 0, z: 1.6 };
+  if (total === 0) return { x: carLength / 2, y: 0, z: carWidth / 2 };
   return {
     x: loads.reduce((a, l) => a + l.weight * (l.x + l.w / 2), 0) / total,
     y: loads.reduce((a, l) => a + l.weight * (l.y + l.h / 2), 0) / total,
@@ -49,14 +37,15 @@ function computeCoG(loads: Load3D[]) {
   };
 }
 
-function autoBalance(loads: Load3D[]): Load3D[] {
+function autoBalance(loads: Load3D[], carLength = 20): Load3D[] {
   const sorted = [...loads].sort((a, b) => b.weight - a.weight);
   return loads.map(l => {
     const matched = sorted.find(s => s.id === l.id);
     if (!matched) return l;
     const idx = sorted.indexOf(matched);
-    const targetX = idx % 2 === 0 ? 0.3 + (idx / sorted.length) * 9 : 19.5 - (idx / sorted.length) * 9 - l.w;
-    return { ...l, x: Math.max(0.1, Math.min(20 - l.w - 0.1, targetX)) };
+    const halfL = carLength / 2;
+    const targetX = idx % 2 === 0 ? 0.3 + (idx / sorted.length) * (carLength * 0.45) : carLength - 0.5 - (idx / sorted.length) * (carLength * 0.45) - l.w;
+    return { ...l, x: Math.max(0.1, Math.min(carLength - l.w - 0.1, targetX)) };
   });
 }
 
@@ -111,20 +100,19 @@ function ViolationBanner({ msg, severity, onClose, onAction }: {
 
 // ── BOTTOM ACTION BAR ────────────────────────────────────────────────────────
 function BottomBar({
-  efficiency, hasHistory, onUndo, onRevertAll, onAutoBalance, onSaveTemplate,
-  onExport, onReRun, isBalancing, canExport, engineStatus,
+  efficiency, hasHistory, onUndo, onRevertAll, onAutoBalance,
+  onReRun, isBalancing, engineStatus, optimizationId,
 }: {
-  efficiency: number; hasHistory: boolean; canExport: boolean;
+  efficiency: number; hasHistory: boolean;
   engineStatus: 'green' | 'yellow' | 'red';
   onUndo: () => void; onRevertAll: () => void; onAutoBalance: () => void;
-  onSaveTemplate: () => void; onExport: (fmt: string) => void;
-  onReRun: () => void; isBalancing: boolean;
+  onReRun: () => void; isBalancing: boolean; optimizationId: string | null;
 }) {
   const { isDark, palette } = useTheme();
-  const [exportOpen, setExportOpen] = useState(false);
   const bd = isDark ? '#1E2A38' : '#E2E8F0';
   const txP = isDark ? '#F1F5F9' : '#0F172A';
   const tx = isDark ? '#64748B' : '#94A3B8';
+  const muted = isDark ? '#475569' : '#94A3B8';
   const barBg = isDark ? '#060C14' : '#FFFFFF';
 
   return (
@@ -137,7 +125,7 @@ function BottomBar({
       <div className="flex items-center gap-3 mr-2">
         <StatusBadge status={engineStatus} />
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: txP, fontFamily: 'JetBrains Mono,monospace' }}>OPT-2892</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: txP, fontFamily: 'JetBrains Mono,monospace' }}>#{optimizationId || '—'}</div>
           <div style={{ fontSize: 9.5, color: tx }}>Score <strong style={{ color: palette.accent }}>{efficiency.toFixed(1)}%</strong> · 9.4s</div>
         </div>
       </div>
@@ -174,59 +162,6 @@ function BottomBar({
       <div style={{ flex: 1 }} />
 
       {/* Right actions */}
-      <button onClick={onSaveTemplate}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
-        style={{ fontSize: 12, fontFamily: 'Inter,sans-serif', color: txP, background: 'transparent', border: `1px solid ${bd}` }}
-        onMouseEnter={e => (e.currentTarget.style.background = isDark ? '#1E2A38' : '#F8FAFC')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-        <Save size={13} /> Save Template
-      </button>
-
-      {/* Export dropdown */}
-      <div style={{ position: 'relative' }}>
-        <button onClick={() => canExport && setExportOpen(v => !v)}
-          disabled={!canExport}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
-          style={{
-            fontSize: 12, fontFamily: 'Inter,sans-serif',
-            color: canExport ? txP : tx,
-            background: isDark ? '#1E2A38' : '#F1F5F9',
-            border: `1px solid ${canExport ? bd : '#EF444440'}`,
-            opacity: canExport ? 1 : 0.5,
-            cursor: canExport ? 'pointer' : 'not-allowed',
-          }}
-          title={canExport ? 'Export plan' : 'Export disabled — resolve violations first'}>
-          <Download size={13} /> Export Plan <ChevronDown size={11} style={{ transform: exportOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-        </button>
-        {!canExport && (
-          <div style={{
-            position: 'absolute', bottom: '100%', right: 0, marginBottom: 6,
-            background: '#EF4444', color: '#fff', fontSize: 9, padding: '3px 8px',
-            borderRadius: 4, whiteSpace: 'nowrap', fontFamily: 'Inter,sans-serif',
-          }}>
-            Blocked — CG / truck / endwall violation
-          </div>
-        )}
-        <AnimatePresence>
-          {exportOpen && canExport && (
-            <motion.div initial={{ opacity: 0, y: 6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.15 }}
-              style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 4, background: isDark ? '#0D1420' : '#fff', border: `1px solid ${bd}`, borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.3)', overflow: 'hidden', minWidth: 150, zIndex: 100 }}>
-              {[{ fmt: 'PDF', label: 'PDF Report' }, { fmt: 'CSV', label: 'CSV Data' }, { fmt: 'GLTF', label: 'GLTF 3D Scene' }, { fmt: 'JSON', label: 'JSON Manifest' }].map(({ fmt, label }) => (
-                <button key={fmt} onClick={() => { onExport(fmt); setExportOpen(false); }}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors"
-                  style={{ fontSize: 12, color: txP, fontFamily: 'Inter,sans-serif' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = isDark ? '#1E2A38' : '#F8FAFC')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: palette.primary, fontFamily: 'JetBrains Mono,monospace', minWidth: 30 }}>{fmt}</span>
-                  {label}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
       <button onClick={onReRun}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
         style={{ fontSize: 12, fontFamily: 'Inter,sans-serif', color: txP, background: 'transparent', border: `1px solid ${bd}` }}
@@ -246,7 +181,9 @@ export function Results() {
   const [apiEfficiency, setApiEfficiency] = useState<number | null>(null);
   const [trendData, setTrendData] = useState<{ t: string; v: number }[]>(EMPTY_TREND);
 
-  const [loads, setLoads]             = useState<Load3D[]>(INITIAL_LOADS);
+  const [loads, setLoads]             = useState<Load3D[]>([]);
+  const [loadsLoaded, setLoadsLoaded] = useState(false);
+  const [originalLoads, setOriginalLoads] = useState<Load3D[]>([]);
   const [selectedLoad, setSelectedLoad] = useState<string | null>(null);
   const [history, setHistory]         = useState<Load3D[][]>([]);
   const [cogTrail, setCogTrail]       = useState<{ x: number; y: number; z: number }[]>([]);
@@ -254,6 +191,11 @@ export function Results() {
   const [isBalancing, setIsBalancing] = useState(false);
   const [vehicleType, setVehicleType] = useState<'flatcar' | 'boxcar' | 'gondola' | 'reefer'>('flatcar');
   const [vehicleTypeOpen, setVehicleTypeOpen] = useState(false);
+  const [vehicleDims, setVehicleDims] = useState<{ length: number; width: number; height: number; axlePositions: number[] } | null>(null);
+  const [stabilityResults, setStabilityResults] = useState<{ item_id: string; risk_score: number }[]>([]);
+  const [showMiniMap, setShowMiniMap] = useState(true);
+  const [physicsEnabled, setPhysicsEnabled] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   // ── NEW: Advanced Optimization State ────────────────────────────────────
   const [optimizationObjective, setOptimizationObjective] = useState<OptimizationObjective>('space');
@@ -278,11 +220,74 @@ export function Results() {
     if (id) {
       fetchOptimizationResult(Number(id))
         .then(r => {
+          console.log('[Results] API response:', r);
           if (r.efficiency_score != null) setApiEfficiency(r.efficiency_score * 100);
+          const result = (r as any).result ?? {};
+          console.log('[Results] result object:', result);
+          const placements = result.placements ?? [];
+          const vehicle = result.vehicle;
+          const errorMessage = result.error_message;
+          const violations = result.violations ?? [];
+          console.log('[Results] placements:', placements.length, 'vehicle:', !!vehicle, 'errors:', errorMessage);
+
+          if (vehicle) {
+            setVehicleDims({
+              length: vehicle.length_m,
+              width: vehicle.width_m,
+              height: vehicle.height_m,
+              axlePositions: vehicle.axle_positions ?? [],
+            });
+            const vt = vehicle.type as 'flatcar' | 'boxcar' | 'gondola' | 'reefer';
+            if (['flatcar', 'boxcar', 'gondola', 'reefer'].includes(vt)) setVehicleType(vt);
+          }
+
+          if (placements.length > 0) {
+            const apiLoads: Load3D[] = placements.map((p: any, i: number) => {
+              const ld = p.load?.dimensions ?? {};
+              return {
+                id: `L-${p.load_id}`,
+                name: p.load?.name ?? `Load ${p.load_id}`,
+                weight: p.load?.weight ?? 0,
+                volume: (ld.length ?? 0) * (ld.width ?? 0) * (ld.height ?? 0),
+                fragile: p.load?.fragile ?? false,
+                priority: p.load?.priority ?? 5,
+                customer: p.load?.customer ?? '',
+                compatScore: 90,
+                stackGroup: 'A',
+                rotationAllowed: true,
+                x: p.x ?? 0,
+                y: p.y ?? 0,
+                z: p.z ?? 0,
+                w: ld.length ?? 1,
+                h: ld.height ?? 1,
+                d: ld.width ?? 1,
+                color: ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4','#EC4899','#84CC16'][i % 8],
+                hasViolation: false,
+              };
+            });
+            setLoads(apiLoads);
+            setOriginalLoads(apiLoads);
+          } else {
+            console.warn('[Results] No placements returned. Vehicle:', vehicle, 'Violations:', violations);
+            if (errorMessage) {
+              toast.error(`Optimization failed: ${errorMessage}`);
+            } else if (violations.length > 0) {
+              const errors = violations.filter((v: any) => v.severity === 'error');
+              if (errors.length > 0) {
+                toast.error(`Optimization had ${errors.length} violations`);
+              }
+            }
+          }
+          setLoadsLoaded(true);
         })
-        .catch(() => undefined);
+        .catch(err => {
+          console.error('[Results] Failed to fetch optimization result:', err);
+          toast.error('Failed to load optimization results');
+          setLoadsLoaded(true);
+        });
     } else {
       setApiEfficiency(null);
+      setLoadsLoaded(true);
     }
   }, [searchParams]);
 
@@ -300,19 +305,44 @@ export function Results() {
   }, []);
 
   // ── AAR ENGINE ──────────────────────────────────────────────────────────
+  const carConfig = useMemo<CarConfig>(() => {
+    if (vehicleDims) {
+      const L = vehicleDims.length;
+      return {
+        length: L,
+        width: vehicleDims.width,
+        interiorHeight: vehicleDims.height,
+        loadLimit: 80000,
+        tareWeight: 20000,
+        emptyCGHeight: 45,
+        plateType: 'C',
+        truckCenterFront: L * 0.15,
+        truckCenterRear: L * 0.85,
+        axlePositions: vehicleDims.axlePositions.length ? vehicleDims.axlePositions : [L*0.1, L*0.35, L*0.65, L*0.9],
+        axleLimit: 22500,
+        endwallForceLimit: 100000,
+        allowedGap: 1.5,
+        platformHeight: 1.1,
+      };
+    }
+    return DEFAULT_CAR;
+  }, [vehicleDims]);
+
   const engineResult: EngineOutput = useMemo(
-    () => runAARValidation(DEFAULT_CAR, toEngineLoads(loads)),
-    [loads]
+    () => runAARValidation(carConfig, toEngineLoads(loads)),
+    [loads, carConfig]
   );
 
   // Computed values from engine
   const cogPosition = useMemo(() => computeCoG(loads), [loads]);
+  const carLength = vehicleDims?.length ?? 20;
+  const carWidth = vehicleDims?.width ?? 3.2;
   const efficiency = apiEfficiency ?? engineResult.packingEfficiency;
   const stabilityIdx = useMemo(() => {
-    const xDev = Math.abs(cogPosition.x - 10) / 10;
-    const zDev = Math.abs(cogPosition.z - 1.6) / 1.6;
+    const xDev = Math.abs(cogPosition.x - carLength / 2) / (carLength / 2);
+    const zDev = Math.abs(cogPosition.z - carWidth / 2) / (carWidth / 2);
     return Math.round(Math.max(0, Math.min(100, 100 - xDev * 50 - zDev * 50)));
-  }, [cogPosition]);
+  }, [cogPosition, carLength, carWidth]);
 
   // ── NEW: Advanced Metrics Computation ──────────────────────────────────
   const stressMetrics: StressMetrics = useMemo(() => {
@@ -453,14 +483,18 @@ export function Results() {
     setHistory(h => [...h.slice(-19), current]);
   }, []);
 
-  // ── DRAG VALIDATION (realtime) ────────────────────────────────────────
+  // Use refs to avoid stale closures in drag callbacks
+  const loadsDragRef = useRef(loads);
+  const carConfigRef = useRef(carConfig);
+  useEffect(() => { loadsDragRef.current = loads; }, [loads]);
+  useEffect(() => { carConfigRef.current = carConfig; }, [carConfig]);
+
   const handleValidateDrag = useCallback((id: string, x: number, z: number) => {
-    return validateDragPosition(DEFAULT_CAR, id, x, z, toEngineLoads(loads));
-  }, [loads]);
+    return validateDragPosition(carConfigRef.current, id, x, z, toEngineLoads(loadsDragRef.current));
+  }, []);
 
   const handleMoveLoad = useCallback((id: string, x: number, z: number) => {
-    // Final validation before accepting move
-    const validation = validateDragPosition(DEFAULT_CAR, id, x, z, toEngineLoads(loads));
+    const validation = validateDragPosition(carConfigRef.current, id, x, z, toEngineLoads(loadsDragRef.current));
 
     if (validation.hasCollision) {
       toast.error('Cannot place — collision detected');
@@ -472,9 +506,20 @@ export function Results() {
       return;
     }
 
-    pushHistory(loads);
+    pushHistory(loadsDragRef.current);
     setLoads(prev => {
-      const updated = prev.map(l => l.id === id ? { ...l, x, z } : l);
+      // Find the dragged load to get its stack group
+      const dragged = prev.find(l => l.id === id);
+      if (!dragged) return prev;
+      const stackGroup = dragged.stackGroup || id;
+      const dx = x - dragged.x;
+      const dz = z - dragged.z;
+      // Move all loads in the same stack group
+      const updated = prev.map(l =>
+        (l.stackGroup || l.id) === stackGroup
+          ? { ...l, x: l.x + dx, z: l.z + dz }
+          : l
+      );
       const newCog = computeCoG(updated);
       setCogTrail(trail => [...trail.slice(-8), computeCoG(prev), newCog]);
       return updated;
@@ -502,34 +547,22 @@ export function Results() {
 
   const handleRevertAll = useCallback(() => {
     pushHistory(loads);
-    setLoads(INITIAL_LOADS);
+    setLoads(originalLoads);
     setCogTrail([]);
     toast.success('Reverted to original placement');
-  }, [loads, pushHistory]);
+  }, [loads, originalLoads, pushHistory]);
 
   const handleAutoBalance = useCallback(async () => {
     setIsBalancing(true);
     pushHistory(loads);
     await new Promise(r => setTimeout(r, 900));
-    const balanced = autoBalance(loads);
+    const balanced = autoBalance(loads, vehicleDims?.length ?? 20);
     setLoads(balanced);
     const newCog = computeCoG(balanced);
     setCogTrail(t => [...t.slice(-5), computeCoG(loads), newCog]);
     setIsBalancing(false);
     toast.success('Auto-balance complete — CoG optimized', { icon: '⚡' });
-  }, [loads, pushHistory]);
-
-  const handleSaveTemplate = useCallback(() => {
-    toast.success('Configuration saved as template');
-  }, []);
-
-  const handleExport = useCallback((fmt: string) => {
-    if (!engineResult.canExport) {
-      toast.error('Export blocked — resolve violations first');
-      return;
-    }
-    toast.success(`Exporting ${fmt} — download will begin shortly`);
-  }, [engineResult.canExport]);
+  }, [loads, pushHistory, vehicleDims]);
 
   const handleReRun = useCallback(() => {
     navigate('/jobs/new');
@@ -580,10 +613,6 @@ export function Results() {
   const handleDeleteScenario = useCallback((id: string) => {
     setScenarios(prev => prev.filter(s => s.id !== id));
     toast.success('Scenario deleted');
-  }, []);
-
-  const handleShowAlternate = useCallback(() => {
-    toast.info('Alternate scenario view — feature coming soon');
   }, []);
 
   return (
@@ -664,6 +693,16 @@ export function Results() {
               <div style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace', color: palette.accent, fontWeight: 700 }}>
                 {efficiency.toFixed(1)}% eff.
               </div>
+              <button
+                onClick={() => setShowMiniMap(!showMiniMap)}
+                style={{
+                  padding: '4px 8px', borderRadius: 4, border: `1px solid ${showMiniMap ? '#10B98140' : bd}`,
+                  background: showMiniMap ? '#10B98120' : 'transparent', color: showMiniMap ? '#10B981' : muted,
+                  fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {showMiniMap ? '📍 Map' : '📍 Map'}
+              </button>
             </div>
           </div>
 
@@ -673,6 +712,7 @@ export function Results() {
               loads={loads}
               selectedLoad={selectedLoad}
               vehicleType={vehicleType}
+              vehicleDims={vehicleDims ? { length: vehicleDims.length, width: vehicleDims.width, height: vehicleDims.height } : undefined}
               cogPosition={cogPosition}
               cogTrail={cogTrail}
               axleData={engineResult.axleLoads}
@@ -680,7 +720,44 @@ export function Results() {
               onSelectLoad={setSelectedLoad}
               onMoveLoad={handleMoveLoad}
               onValidateDrag={handleValidateDrag}
+              onStabilityUpdate={setStabilityResults}
+              onPhysicsToggle={setPhysicsEnabled}
+              onDebugToggle={setDebugMode}
             />
+            {/* MiniMap overlay */}
+            {showMiniMap && vehicleDims && loads.length > 0 && (
+              <div style={{ position: 'absolute', bottom: 48, left: 12, zIndex: 50 }}>
+                <MiniMap
+                  loads={loads.map(l => ({ id: l.id, x: l.x, z: l.z, w: l.w, d: l.d, color: l.color, name: l.name, weight: l.weight }))}
+                  vehicleLength={vehicleDims.length}
+                  vehicleWidth={vehicleDims.width}
+                  selectedLoad={selectedLoad}
+                  onSelectLoad={setSelectedLoad}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+            {/* Load Info Panel */}
+            {selectedLoad && (
+              <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 50 }}>
+                <LoadInfoPanel
+                  load={(() => {
+                    const l = loads.find(ld => ld.id === selectedLoad);
+                    if (!l) return null;
+                    const stab = stabilityResults.find(s => s.item_id === l.id);
+                    return {
+                      id: l.id, name: l.name, weight: l.weight,
+                      w: l.w, h: l.h, d: l.d,
+                      x: l.x, y: l.y, z: l.z,
+                      color: l.color, fragile: l.fragile, stackable: true,
+                      stabilityRisk: stab?.risk_score,
+                    } as LoadInfo;
+                  })()}
+                  isDark={isDark}
+                  onClose={() => setSelectedLoad(null)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Scene footer — quick KPI strip */}
@@ -730,7 +807,6 @@ export function Results() {
           onSaveScenario={handleSaveScenario}
           onCompareScenarios={handleCompareScenarios}
           onDeleteScenario={handleDeleteScenario}
-          onShowAlternate={handleShowAlternate}
         />
       </div>
 
@@ -738,15 +814,13 @@ export function Results() {
       <BottomBar
         efficiency={efficiency}
         hasHistory={history.length > 0}
-        canExport={engineResult.canExport}
         engineStatus={engineResult.status}
         onUndo={handleUndo}
         onRevertAll={handleRevertAll}
         onAutoBalance={handleAutoBalance}
-        onSaveTemplate={handleSaveTemplate}
-        onExport={handleExport}
         onReRun={handleReRun}
         isBalancing={isBalancing}
+        optimizationId={searchParams.get('id')}
       />
     </div>
   );

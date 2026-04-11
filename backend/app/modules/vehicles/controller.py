@@ -17,7 +17,7 @@ def _service(db: Session) -> VehicleService:
 
 
 @router.get("")
-def list_vehicles(page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=100),
+def list_vehicles(page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=200),
                   type: str | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     org_id = get_tenant_organization_id(current_user)
     if org_id is None:
@@ -29,7 +29,10 @@ def list_vehicles(page: int = Query(default=1, ge=1), page_size: int = Query(def
     sliced = vehicles[start: start + page_size]
     return success_response({"items": [
         {"id": v.id, "organization_id": v.organization_id, "type": v.type.value, "dimensions": v.dimensions,
-         "capacity": v.capacity} for v in sliced], "total": len(vehicles), "page": page, "page_size": page_size})
+         "capacity": v.capacity, "tare_weight_kg": v.tare_weight_kg, "plate_type": v.plate_type,
+         "truck_center_front": v.truck_center_front, "truck_center_rear": v.truck_center_rear,
+         "empty_cg_height_in": v.empty_cg_height_in, "axle_positions": v.axle_positions}
+        for v in sliced], "total": len(vehicles), "page": page, "page_size": page_size})
 
 
 @router.get("/{vehicle_id}")
@@ -40,7 +43,9 @@ def get_vehicle(vehicle_id: int, db: Session = Depends(get_db), current_user=Dep
     v = _service(db).get_vehicle(org_id, vehicle_id)
     return success_response(
         {"id": v.id, "organization_id": v.organization_id, "type": v.type.value, "dimensions": v.dimensions,
-         "capacity": v.capacity})
+         "capacity": v.capacity, "tare_weight_kg": v.tare_weight_kg, "plate_type": v.plate_type,
+         "truck_center_front": v.truck_center_front, "truck_center_rear": v.truck_center_rear,
+         "empty_cg_height_in": v.empty_cg_height_in, "axle_positions": v.axle_positions})
 
 
 @router.post("")

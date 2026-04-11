@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Sun, Moon, Monitor, Check, Palette, Eye, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Sun, Moon, Monitor, Check, RotateCcw, Loader2, Building2, Save } from 'lucide-react';
 import { useTheme, PALETTES, PaletteName, ColorMode } from '../contexts/ThemeContext';
 import { OLCard, OLCardHeader } from '../components/ui/OLCard';
 import { OLButton } from '../components/ui/OLButton';
 import { toast } from 'sonner';
+import { fetchOrganization, updateOrganization, type OrgRow } from '../services/organizationService';
 
 export function Settings() {
   const {
@@ -12,6 +13,51 @@ export function Settings() {
     tableRowHighlight, setTableRowHighlight,
   } = useTheme();
 
+  // Organization state
+  const [org, setOrg] = useState<Partial<OrgRow> | null>(null);
+  const [orgLoading, setOrgLoading] = useState(true);
+  const [orgSaving, setOrgSaving] = useState(false);
+  const [orgForm, setOrgForm] = useState<Partial<OrgRow>>({});
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchOrganization();
+        setOrg(data);
+        setOrgForm(data);
+      } catch {
+        toast.error('Failed to load organization settings');
+      } finally {
+        setOrgLoading(false);
+      }
+    };
+    void load();
+  }, []);
+
+  const handleSaveOrg = useCallback(async () => {
+    setOrgSaving(true);
+    try {
+      const payload: Partial<OrgRow> = {};
+      if (orgForm.name !== org?.name) payload.name = orgForm.name;
+      if (orgForm.timezone !== org?.timezone) payload.timezone = orgForm.timezone;
+      if (orgForm.contact_email !== org?.contact_email) payload.contact_email = orgForm.contact_email;
+      if (orgForm.contact_phone !== org?.contact_phone) payload.contact_phone = orgForm.contact_phone;
+      if (orgForm.address !== org?.address) payload.address = orgForm.address;
+      if (orgForm.city !== org?.city) payload.city = orgForm.city;
+      if (orgForm.state !== org?.state) payload.state = orgForm.state;
+      if (orgForm.country !== org?.country) payload.country = orgForm.country;
+      if (orgForm.postal_code !== org?.postal_code) payload.postal_code = orgForm.postal_code;
+      if (Object.keys(payload).length === 0) { toast.info('No changes to save'); setOrgSaving(false); return; }
+      await updateOrganization(payload);
+      setOrg(prev => prev ? { ...prev, ...payload } : payload);
+      toast.success('Organization settings saved');
+    } catch {
+      toast.error('Failed to save organization settings');
+    } finally {
+      setOrgSaving(false);
+    }
+  }, [orgForm, org]);
+
   const text = isDark ? '#94A3B8' : '#64748B';
   const textPrimary = isDark ? '#F1F5F9' : '#0F172A';
   const border = isDark ? '#1E2A38' : '#E2E8F0';
@@ -19,8 +65,8 @@ export function Settings() {
 
   const inputStyle: React.CSSProperties = {
     background: inputBg, border: `1px solid ${border}`, color: textPrimary,
-    borderRadius: 8, padding: '8px 12px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace',
-    outline: 'none',
+    borderRadius: 8, padding: '8px 12px', fontSize: '13px', fontFamily: 'Inter, sans-serif',
+    outline: 'none', width: '100%',
   };
 
   const MODE_OPTIONS: { mode: ColorMode; icon: React.FC<any>; label: string }[] = [
@@ -99,7 +145,7 @@ export function Settings() {
                   <input type="color" value={value.slice(0, 7)} onChange={e => onChange(e.target.value)}
                     className="rounded-lg cursor-pointer" style={{ width: 44, height: 36, border: `1px solid ${border}`, padding: 2 }} />
                 </div>
-                <input value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: 140 }} placeholder="#000000" />
+                <input value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: 140, fontFamily: 'JetBrains Mono, monospace' }} placeholder="#000000" />
                 <div className="rounded-lg flex-1" style={{ height: 36, background: value, border: `1px solid ${border}` }} />
               </div>
             </div>
@@ -114,11 +160,10 @@ export function Settings() {
         </div>
       </OLCard>
 
-      {/* Preview Panel */}
+      {/* Theme Preview */}
       <OLCard padding="24px">
         <OLCardHeader title="Theme Preview" subtitle="Live preview of current settings" />
         <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}` }}>
-          {/* Simulated sidebar strip */}
           <div className="flex">
             <div style={{ width: 8, background: palette.accent }} />
             <div className="flex-1 p-4" style={{ background: isDark ? '#161D2A' : '#F8FAFC' }}>
@@ -150,22 +195,76 @@ export function Settings() {
 
       {/* Organization Settings */}
       <OLCard padding="24px">
-        <OLCardHeader title="Organization" subtitle="RailCorp Inc. workspace settings" />
-        <div className="space-y-4">
-          {[
-            { label: 'Organization Name', value: 'RailCorp Inc.' },
-            { label: 'Subdomain', value: 'railcorp' },
-            { label: 'Timezone', value: 'America/Chicago (CST)' },
-          ].map(({ label, value }) => (
-            <div key={label} className="grid grid-cols-2 gap-4 items-center">
-              <label style={{ fontSize: '13px', color: textPrimary, fontWeight: 500 }}>{label}</label>
-              <input defaultValue={value} style={{ ...inputStyle, fontFamily: 'Inter, sans-serif' }} />
-            </div>
-          ))}
-          <div className="flex justify-end pt-2">
-            <OLButton variant="primary" size="sm" onClick={() => toast.success('Organization settings saved')}>Save Changes</OLButton>
+        <OLCardHeader title="Organization" subtitle={orgLoading ? 'Loading...' : `${org?.name || 'Organization'} settings`} />
+        {orgLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 size={24} className="animate-spin" style={{ color: palette.primary }} />
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { label: 'Organization Name', key: 'name' as const, type: 'text' },
+                { label: 'Contact Email', key: 'contact_email' as const, type: 'email' },
+                { label: 'Contact Phone', key: 'contact_phone' as const, type: 'tel' },
+                { label: 'Timezone', key: 'timezone' as const, type: 'text' },
+                { label: 'City', key: 'city' as const, type: 'text' },
+                { label: 'State', key: 'state' as const, type: 'text' },
+                { label: 'Country', key: 'country' as const, type: 'text' },
+                { label: 'Postal Code', key: 'postal_code' as const, type: 'text' },
+              ].map(({ label, key, type }) => (
+                <div key={key}>
+                  <label style={{ fontSize: '12px', fontWeight: 500, color: text, marginBottom: 4, display: 'block' }}>{label}</label>
+                  <input
+                    type={type}
+                    value={orgForm[key] || ''}
+                    onChange={e => setOrgForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={inputStyle}
+                    placeholder={label}
+                  />
+                </div>
+              ))}
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: text, marginBottom: 4, display: 'block' }}>Address</label>
+              <textarea
+                value={orgForm.address || ''}
+                onChange={e => setOrgForm(f => ({ ...f, address: e.target.value }))}
+                rows={2}
+                style={{ ...inputStyle, resize: 'vertical' }}
+                placeholder="Street address"
+              />
+            </div>
+
+            {/* Read-only info */}
+            <div className="flex flex-wrap gap-4 pt-2" style={{ borderTop: `1px solid ${border}` }}>
+              <div>
+                <span style={{ fontSize: '11px', color: text }}>Plan: </span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, textTransform: 'capitalize' }}>{org?.plan_type}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: text }}>Status: </span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, textTransform: 'capitalize' }}>{org?.status}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: text }}>Max Users: </span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary }}>{org?.max_users}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <OLButton
+                variant="primary"
+                size="sm"
+                icon={orgSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                disabled={orgSaving}
+                onClick={handleSaveOrg}
+              >
+                {orgSaving ? 'Saving...' : 'Save Changes'}
+              </OLButton>
+            </div>
+          </div>
+        )}
       </OLCard>
     </div>
   );

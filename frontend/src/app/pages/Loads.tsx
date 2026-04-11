@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Grid3X3, List, Package, Eye, Edit3, Copy, Archive, Trash2, ToggleLeft, ToggleRight, AlertTriangle, Filter } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Search, Plus, Grid3X3, List, Package,   Trash2, Filter, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { OLCard } from '../components/ui/OLCard';
 import { OLBadge } from '../components/ui/OLBadge';
@@ -7,7 +7,7 @@ import { OLButton } from '../components/ui/OLButton';
 import { OLModal } from '../components/ui/OLModal';
 import { toast } from 'sonner';
 import { validateLoadForm, type LoadFormErrors } from '../engine/AAREngine';
-import { createLoad, listLoads } from '../services/loadService';
+import { createLoad, listLoads, deleteLoad } from '../services/loadService';
 
 const defaultLoad = { name: '', customer: '', length: '', width: '', height: '', weight: '', priority: 5, stackable: false, fragile: false, rotatable: true, hazmat: false };
 
@@ -23,15 +23,28 @@ export function Loads() {
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<LoadFormErrors>({});
   const [loads, setLoads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
 
-  const loadLoads = async () => {
-    const apiLoads = await listLoads();
-    setLoads(apiLoads.map((l) => ({ ...l, status: 'ready', stackable: false, fragile: false })));
-  };
+  const loadLoads = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); else setRefreshing(true);
+    try {
+      const res = await listLoads(page, pageSize);
+      const arr = Array.isArray(res) ? res : (res as any).items ?? [];
+      const t = (res as any).total ?? arr.length;
+      setLoads(arr);
+      setTotal(t);
+    } catch {
+      toast.error('Failed to load loads');
+    } finally {
+      if (!silent) setLoading(false); else setRefreshing(false);
+    }
+  }, [page, pageSize]);
 
-  useEffect(() => {
-    void loadLoads();
-  }, []);
+  useEffect(() => { void loadLoads(); }, [loadLoads]);
 
   const text = isDark ? '#94A3B8' : '#64748B';
   const textPrimary = isDark ? '#F1F5F9' : '#0F172A';
@@ -45,11 +58,15 @@ export function Loads() {
     outline: 'none', width: '100%',
   };
 
-  const filtered = useMemo(() => loads.filter((l: any) =>
-    (search === '' || `Load ${l.id}`.toLowerCase().includes(search.toLowerCase()) || String(l.id).includes(search.toLowerCase())) &&
-    (statusFilter === 'All' || 'ready' === statusFilter.toLowerCase()) &&
-    (priorityFilter === 'All' || true)
-  ), [loads, search, statusFilter, priorityFilter]);
+  const filtered = useMemo(() => loads.filter((l: any) => {
+    const matchSearch = search === '' || `Load ${l.id}`.toLowerCase().includes(search.toLowerCase()) || String(l.id).includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'All' || (l.status && l.status.toLowerCase() === statusFilter.toLowerCase());
+    const priorityMap: Record<string, number> = { High: 8, Medium: 5, Low: 3 };
+    const matchPriority = priorityFilter === 'All' || (l.priority ?? 5) >= priorityMap[priorityFilter];
+    return matchSearch && matchStatus && matchPriority;
+  }), [loads, search, statusFilter, priorityFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const Toggle = ({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
     <div className="flex items-center justify-between py-2">
@@ -70,19 +87,39 @@ export function Loads() {
       return;
     }
     setFormErrors({});
-    await createLoad({
-      type: 'cube',
-      dimensions: {
-        length: Number(form.length || 0),
-        width: Number(form.width || 0),
-        height: Number(form.height || 0),
-      },
-      weight: Number(form.weight || 0),
-    });
-    await loadLoads();
-    setSaving(false);
-    setShowForm(false);
-    toast.success('Load created successfully');
+    try {
+      await createLoad({
+        type: 'cube',
+        dimensions: {
+          length: Number(form.length || 0),
+          width: Number(form.width || 0),
+          height: Number(form.height || 0),
+        },
+        weight: Number(form.weight || 0),
+        quantity: 1,
+      });
+      await loadLoads();
+      setShowForm(false);
+      setForm(defaultLoad);
+      toast.success('Load created successfully');
+    } catch {
+      toast.error('Failed to create load');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteLoad(Number(deleteTarget));
+      toast.success('Load deleted');
+      await loadLoads();
+    } catch {
+      toast.error('Failed to delete load');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const PriorityBar = ({ value }: { value: number }) => (
@@ -98,7 +135,6 @@ export function Loads() {
 
   return (
     <div className="p-3 sm:p-6">
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-4 sm:mb-6">
         <div className="relative flex-1 min-w-48">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: text }} />
@@ -119,6 +155,7 @@ export function Loads() {
             <Grid3X3 size={15} />
           </button>
         </div>
+        <OLButton variant="ghost" size="sm" icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />} onClick={() => void loadLoads(false)}>Refresh</OLButton>
         <OLButton variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => setShowForm(true)}>Add Load</OLButton>
       </div>
 
@@ -134,7 +171,11 @@ export function Loads() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((l: any) => (
+                {loading ? (
+                  <tr><td colSpan={9} className="py-12 text-center" style={{ color: text }}>Loading loads...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={9} className="py-12 text-center" style={{ color: text }}>No loads found</td></tr>
+                ) : filtered.map((l: any) => (
                   <tr key={l.id} style={{ borderBottom: `1px solid ${border}` }}
                     onMouseEnter={e => (e.currentTarget.style.background = rowHover)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -142,10 +183,10 @@ export function Loads() {
                   >
                     <td className="px-4 py-3"><span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: palette.accent }}>{l.id}</span></td>
                     <td className="px-4 py-3" style={{ fontSize: '13px', color: textPrimary, fontWeight: 500 }}>{`Load ${l.id}`}</td>
-                    <td className="px-4 py-3" style={{ fontSize: '12px', color: text }}>{'-'}</td>
-                    <td className="px-4 py-3" style={{ fontSize: '11px', color: text, fontFamily: 'JetBrains Mono, monospace' }}>{`${l.dimensions.length ?? '-'} × ${l.dimensions.width ?? '-'} × ${l.dimensions.height ?? '-'}m`}</td>
+                    <td className="px-4 py-3" style={{ fontSize: '12px', color: text }}>{l.customer || '-'}</td>
+                    <td className="px-4 py-3" style={{ fontSize: '11px', color: text, fontFamily: 'JetBrains Mono, monospace' }}>{`${l.dimensions?.length ?? '-'} × ${l.dimensions?.width ?? '-'} × ${l.dimensions?.height ?? '-'}m`}</td>
                     <td className="px-4 py-3" style={{ fontSize: '12px', color: textPrimary }}>{l.weight}</td>
-                    <td className="px-4 py-3"><PriorityBar value={5} /></td>
+                    <td className="px-4 py-3"><PriorityBar value={l.priority ?? 5} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         {l.stackable && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: '#10B98115', color: '#10B981' }}>Stack</span>}
@@ -153,14 +194,14 @@ export function Loads() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <OLBadge status={l.status === 'ready' ? 'success' : l.status === 'assigned' ? 'info' : 'neutral'} label={l.status.charAt(0).toUpperCase() + l.status.slice(1)} />
+                      <OLBadge status={l.status === 'ready' ? 'success' : l.status === 'assigned' ? 'info' : 'neutral'} label={(l.status || 'ready').charAt(0).toUpperCase() + (l.status || 'ready').slice(1)} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {[Eye, Edit3, Copy, Archive, Trash2].map((Icon, i) => (
+                        {[Trash2].map((Icon, i) => (
                           <button key={i} className="p-1.5 rounded-md transition-colors"
-                            style={{ color: i === 4 ? '#EF4444' : text }}
-                            onClick={() => { if (i === 4) setDeleteTarget(String(l.id)); else toast.success('Action completed'); }}
+                            style={{ color: '#EF4444' }}
+                            onClick={() => setDeleteTarget(String(l.id))}
                             onMouseEnter={e => (e.currentTarget.style.background = i === 4 ? '#EF444415' : isDark ? '#1E2A38' : '#F1F5F9')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
@@ -174,6 +215,22 @@ export function Loads() {
               </tbody>
             </table>
           </div>
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: `1px solid ${border}` }}>
+            <span style={{ fontSize: '12px', color: text }}>Showing {filtered.length} of {total} loads</span>
+            <div className="flex gap-1 items-center">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+                style={{ fontSize: '12px', background: 'transparent', color: page === 1 ? text : textPrimary, opacity: page === 1 ? 0.4 : 1 }}>‹</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 5).map(p => (
+                <button key={p} onClick={() => setPage(p)}
+                  className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+                  style={{ fontSize: '12px', background: p === page ? palette.primary : 'transparent', color: p === page ? '#fff' : text }}>{p}</button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                className="w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+                style={{ fontSize: '12px', background: 'transparent', color: page === totalPages ? text : textPrimary, opacity: page === totalPages ? 0.4 : 1 }}>›</button>
+            </div>
+          </div>
         </OLCard>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -183,28 +240,26 @@ export function Loads() {
                 <div className="flex items-center justify-center rounded-lg" style={{ width: 40, height: 40, background: palette.primary + '18' }}>
                   <Package size={18} style={{ color: palette.primary }} />
                 </div>
-                <OLBadge status={l.status === 'ready' ? 'success' : l.status === 'assigned' ? 'info' : 'neutral'} label={l.status.charAt(0).toUpperCase() + l.status.slice(1)} />
+                <OLBadge status={l.status === 'ready' ? 'success' : l.status === 'assigned' ? 'info' : 'neutral'} label={(l.status || 'ready').charAt(0).toUpperCase() + (l.status || 'ready').slice(1)} />
               </div>
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: palette.accent, marginBottom: 4 }}>{l.id}</div>
               <div style={{ fontWeight: 600, fontSize: '13px', color: textPrimary, marginBottom: 2 }}>{`Load ${l.id}`}</div>
-              <div style={{ fontSize: '11px', color: text, marginBottom: 10 }}>{'-'}</div>
+              <div style={{ fontSize: '11px', color: text, marginBottom: 10 }}>{l.customer || '-'}</div>
               <div className="space-y-1.5 pt-3" style={{ borderTop: `1px solid ${border}` }}>
                 <div className="flex justify-between"><span style={{ fontSize: '11px', color: text }}>Weight</span><span style={{ fontSize: '11px', color: textPrimary, fontFamily: 'JetBrains Mono, monospace' }}>{l.weight}</span></div>
-                <div className="flex justify-between"><span style={{ fontSize: '11px', color: text }}>Dims</span><span style={{ fontSize: '11px', color: textPrimary, fontFamily: 'JetBrains Mono, monospace' }}>{`${l.dimensions.length ?? '-'} × ${l.dimensions.width ?? '-'} × ${l.dimensions.height ?? '-'}m`}</span></div>
-                <div className="flex justify-between items-center"><span style={{ fontSize: '11px', color: text }}>Priority</span><PriorityBar value={5} /></div>
+                <div className="flex justify-between"><span style={{ fontSize: '11px', color: text }}>Dims</span><span style={{ fontSize: '11px', color: textPrimary, fontFamily: 'JetBrains Mono, monospace' }}>{`${l.dimensions?.length ?? '-'} × ${l.dimensions?.width ?? '-'} × ${l.dimensions?.height ?? '-'}m`}</span></div>
+                <div className="flex justify-between items-center"><span style={{ fontSize: '11px', color: text }}>Priority</span><PriorityBar value={l.priority ?? 5} /></div>
               </div>
             </OLCard>
           ))}
         </div>
       )}
 
-      {/* Add Load Modal */}
       <OLModal open={showForm} onClose={() => setShowForm(false)} title="Add New Load" subtitle="Define load specifications and handling constraints" width={560}
         footer={[
           <OLButton key="cancel" variant="ghost" onClick={() => setShowForm(false)}>Cancel</OLButton>,
           <OLButton key="save" variant="primary" loading={saving} onClick={handleSave}>Create Load</OLButton>
-        ]}
-      >
+        ]}>
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -249,13 +304,11 @@ export function Loads() {
         </div>
       </OLModal>
 
-      {/* Delete Modal */}
       <OLModal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Load" danger
         footer={[
           <OLButton key="cancel" variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</OLButton>,
-          <OLButton key="delete" variant="danger" onClick={() => { setDeleteTarget(null); toast.success('Load deleted'); }}>Delete Load</OLButton>
-        ]}
-      >
+          <OLButton key="delete" variant="danger" onClick={handleDelete}>Delete Load</OLButton>
+        ]}>
         <div className="flex items-start gap-3 p-4 rounded-lg" style={{ background: '#EF444410', border: '1px solid #EF444430' }}>
           <AlertTriangle size={16} style={{ color: '#EF4444', flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: '13px', color: isDark ? '#94A3B8' : '#64748B' }}>Load {deleteTarget} will be permanently deleted and removed from any optimization jobs.</div>

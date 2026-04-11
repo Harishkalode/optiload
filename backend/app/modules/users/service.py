@@ -14,6 +14,19 @@ class UserService:
     def list_users(self, tenant_organization_id: int | None) -> list[User]:
         return self.repository.list_by_org(tenant_organization_id)
 
+    def list_users_paginated(
+        self,
+        tenant_organization_id: int | None,
+        page: int = 1,
+        page_size: int = 20,
+        search: str | None = None,
+        role_id: int | None = None,
+        status: str | None = None,
+    ) -> tuple[list[User], int]:
+        return self.repository.list_by_org_paginated(
+            tenant_organization_id, page, page_size, search, role_id, status,
+        )
+
     def _validate_role_assignment(self, role_id: int | None, actor_org_id: int | None) -> None:
         if role_id is None:
             return

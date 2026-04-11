@@ -1,13 +1,17 @@
 from enum import Enum
 
 from app.core.database.base import Base
-from sqlalchemy import Enum as SAEnum, Float, ForeignKey, JSON
+from sqlalchemy import Boolean, Enum as SAEnum, Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 
 class VehicleType(str, Enum):
-    railcar = "railcar"
+    boxcar = "boxcar"
+    flatcar = "flatcar"
+    gondola = "gondola"
+    reefer = "reefer"
     container = "container"
+    railcar = "railcar"
 
 
 class Vehicle(Base):
@@ -18,3 +22,9 @@ class Vehicle(Base):
     type: Mapped[VehicleType] = mapped_column(SAEnum(VehicleType), index=True)
     dimensions: Mapped[dict] = mapped_column(JSON)
     capacity: Mapped[float] = mapped_column(Float)
+    tare_weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    plate_type: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    truck_center_front: Mapped[float | None] = mapped_column(Float, nullable=True)
+    truck_center_rear: Mapped[float | None] = mapped_column(Float, nullable=True)
+    empty_cg_height_in: Mapped[float | None] = mapped_column(Float, nullable=True)
+    axle_positions: Mapped[list | None] = mapped_column(JSON, nullable=True)

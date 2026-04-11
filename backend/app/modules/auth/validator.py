@@ -37,3 +37,9 @@ class RegisterRequest(BaseModel):
         if "\x00" in v:
             raise ValueError("invalid password")
         return v
+
+
+class MFAVerifyRequest(BaseModel):
+    user_id: int | None = None
+    code: str = Field(min_length=6, max_length=6)
+    secret: str | None = None

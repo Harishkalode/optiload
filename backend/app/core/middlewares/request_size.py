@@ -17,7 +17,7 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
                         status_code=400,
                         content=error_response("BAD_REQUEST", "Invalid Content-Length"),
                     )
-                if length > settings.max_request_body_bytes:
+                if settings.max_request_body_bytes and length > settings.max_request_body_bytes:
                     return JSONResponse(
                         status_code=413,
                         content=error_response("PAYLOAD_TOO_LARGE", "Request body is too large"),

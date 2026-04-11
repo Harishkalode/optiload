@@ -526,7 +526,7 @@ export function validateDragPosition(
     l.id === draggedId ? { ...l, x: newX, z: newZ } : l
   );
 
-  const hasCollision = checkSingleCollision(draggedId, newX, dragged.y, newZ, dragged, loads);
+  const hasCollision = checkSingleCollision(draggedId, newX, dragged.y, newZ, dragged, simulatedLoads);
 
   const { lateral } = validateLateralBalance(car, simulatedLoads);
   const lateralWarning = lateral.percent > 5;

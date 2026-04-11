@@ -14,8 +14,8 @@ import { OptimizationJobs } from './pages/OptimizationJobs';
 import { Processing } from './pages/Processing';
 import { Results } from './pages/Results';
 import { Reports } from './pages/Reports';
-import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
+import { AccountPage } from './pages/AccountPage';
 import { UserManagement } from './pages/UserManagement';
 import { RolesManagement } from './pages/RolesManagement';
 import { AuditLogs } from './pages/AuditLogs';
@@ -77,17 +77,16 @@ export const router = createBrowserRouter([
       { path: 'jobs/processing', Component: Processing },
       { path: 'jobs/results', Component: Results },
       { path: 'vehicles', Component: Vehicles },
-      { path: 'vehicles/new', Component: Vehicles },
       { path: 'vehicles/create', Component: VehicleCreator },
       { path: 'loads', Component: Loads },
-      { path: 'loads/new', Component: Loads },
       { path: 'reports', Component: Reports },
-      { path: 'users', Component: Users },
+      { path: 'users', Component: () => <Navigate to="/users/management" replace /> },
       { path: 'users/management', Component: UserManagement },
       { path: 'users/roles', Component: RolesManagement },
       { path: 'users/audit', Component: AuditLogs },
       { path: 'users/api-keys', Component: ApiKeysManagement },
       { path: 'settings', Component: Settings },
+      { path: 'account', Component: AccountPage },
     ],
   },
 ]);

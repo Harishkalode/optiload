@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
@@ -29,6 +29,9 @@ export function AppLayout() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  const handleNotifClose = useCallback(() => setNotifRefreshKey(k => k + 1), []);
 
   // Track "G" key press for two-key navigation
   const [pendingG, setPendingG] = useState(false);
@@ -134,7 +137,7 @@ export function AppLayout() {
         <Navbar
           onOpenCommandPalette={() => setCmdOpen(true)}
           onToggleNotifications={() => setNotifOpen(v => !v)}
-          notificationCount={4}
+          notificationRefreshKey={notifRefreshKey}
         />
         <main className="flex-1 overflow-auto" style={{ background: isDark ? '#080D13' : '#F1F5F9' }}>
           <Outlet />
@@ -153,7 +156,7 @@ export function AppLayout() {
 
       {/* Global overlays */}
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
-      <NotificationCenter open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotificationCenter open={notifOpen} onClose={() => { setNotifOpen(false); handleNotifClose(); }} />
       <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );

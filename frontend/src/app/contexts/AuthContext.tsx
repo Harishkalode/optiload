@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { loginRequest, logoutRequest, meRequest, registerRequest } from '../services/authService';
+import { apiRequest } from '../services/http';
 import { ROLE_REDIRECT, ROLES, type RoleValue, isValidRole, normalizeRole } from '../constants/roles';
 
 const SESSION_FLAG_KEY = 'optiload_session_active';
@@ -11,6 +12,7 @@ export interface User {
   email?: string;
   role: RoleValue;
   organizationId: number | null;
+  organization?: string;
   mfaEnabled?: boolean;
 }
 
@@ -57,6 +59,13 @@ function loadState(): AuthState {
   }
 }
 
+async function fetchOrgName(): Promise<string | undefined> {
+  try {
+    const org = await apiRequest<{ name: string }>('/organization');
+    return org?.name;
+  } catch { return undefined; }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -78,12 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setState({ user: null, role: null, token: null, isAuthenticated: false });
           return;
         }
+        const orgName = await fetchOrgName();
         const user: User = {
           id: String(me.id),
           name: me.name,
           email: me.email,
           role: normalizedRole,
           organizationId: me.organization_id,
+          organization: orgName,
           mfaEnabled: me.mfa_enabled,
         };
         setState({
@@ -107,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setAuthenticatedState = (
+  const setAuthenticatedState = async (
     incomingUser: {
       id: number;
       name?: string;
@@ -129,8 +140,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: incomingUser.email,
       role: normalizedRole,
       organizationId: incomingUser.organization_id,
+      organization: undefined,
       mfaEnabled: incomingUser.mfa_enabled,
     };
+
+    // Fetch org name asynchronously
+    const orgName = await fetchOrgName();
+    if (orgName) user.organization = orgName;
 
     const access = tokens?.access;
     if (access) {

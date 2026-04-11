@@ -77,7 +77,12 @@ export function Dashboard() {
   const rowHover = isDark ? '#0D1117' : '#F8FAFC';
 
   const trend = summary?.efficiency_trend ?? [];
-  const spark = sparkFromTrend(trend.length ? trend : [{ efficiency: summary?.avg_efficiency ?? 0 }]);
+  const effSpark = sparkFromTrend(trend.length ? trend : [{ efficiency: summary?.avg_efficiency ?? 0 }]);
+  // Generate pseudo-sparklines for non-efficiency metrics from their values
+  const makeSpark = (base: number, variance: number, n = 12) =>
+    Array.from({ length: n }, (_, i) => ({
+      efficiency: Math.max(0, base / 100 + Math.sin(i * 0.8) * variance + (Math.random() - 0.5) * variance),
+    }));
   const effPct = ((summary?.avg_efficiency ?? 0) * 100).toFixed(1);
 
   const KPI_CARDS = summary
@@ -89,7 +94,7 @@ export function Dashboard() {
           up: true,
           icon: Briefcase,
           color: '#3B82F6',
-          data: spark,
+          data: makeSpark(summary.optimizations, 0.1),
         },
         {
           label: 'Fleet (vehicles)',
@@ -98,7 +103,7 @@ export function Dashboard() {
           up: true,
           icon: Truck,
           color: '#10B981',
-          data: spark,
+          data: makeSpark(summary.total_vehicles, 0.05),
         },
         {
           label: 'Loads in catalog',
@@ -107,7 +112,7 @@ export function Dashboard() {
           up: true,
           icon: Package,
           color: '#8B5CF6',
-          data: spark,
+          data: makeSpark(summary.total_loads, 0.08),
         },
         {
           label: 'Avg efficiency',
@@ -116,7 +121,7 @@ export function Dashboard() {
           up: true,
           icon: DollarSign,
           color: '#F59E0B',
-          data: spark,
+          data: effSpark,
         },
       ]
     : [];

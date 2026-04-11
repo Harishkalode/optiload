@@ -118,14 +118,6 @@ export function Reports() {
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
-          <OLButton variant="ghost" size="sm" icon={<Filter size={14} />}>
-            Filters
-          </OLButton>
-          <OLButton variant="primary" size="sm" icon={<Download size={14} />}>
-            Export (soon)
-          </OLButton>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

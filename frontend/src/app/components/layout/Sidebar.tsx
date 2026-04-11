@@ -297,7 +297,7 @@ export function Sidebar() {
                 <Building2 size={14} color="#ffffff" />
               </div>
               <div style={{ flex: 1, textAlign: 'left' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: textActive }}>{user?.organization || 'RailCorp Inc.'}</div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: textActive }}>{user?.organization || `Org #${user?.organizationId || '—'}`}</div>
                 <div style={{ fontSize: '10px', color: text }}>Production</div>
               </div>
               <ChevronDown size={14} color={text} />

@@ -10,6 +10,9 @@ class ApiKeyRepository:
     def list_by_org(self, organization_id: int) -> list[ApiKey]:
         return list(self.db.scalars(select(ApiKey).where(ApiKey.organization_id == organization_id)).all())
 
+    def list_all(self) -> list[ApiKey]:
+        return list(self.db.scalars(select(ApiKey)).all())
+
     def create(self, api_key: ApiKey) -> ApiKey:
         self.db.add(api_key)
         self.db.commit()
