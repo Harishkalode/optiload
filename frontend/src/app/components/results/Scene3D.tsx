@@ -6,6 +6,7 @@ import {
   createFlatcarModel, createBoxcarModel, createGondolaModel, createReeferModel, createBogie,
 } from './VehicleModelBuilder';
 import { createLoadModel } from './LoadModelBuilder';
+import { createSecurementGroup, updateSecurementGroup } from './SecurementRenderer';
 
 // ── TYPES ─────────────────────────────────────────────────────────────────
 export interface Load3D {
@@ -26,6 +27,7 @@ export interface Scene3DProps {
   cogTrail: { x:number; y:number; z:number }[];
   axleData: { name:string; load:number; limit:number }[];
   engineResult?: EngineOutput;
+  securements?: any[];
   onSelectLoad: (id:string|null) => void;
   onMoveLoad: (id:string, x:number, z:number) => void;
   onValidateDrag?: (id:string, x:number, z:number) => {
@@ -186,6 +188,10 @@ export function Scene3D({
   vehicleType = 'flatcar',
   vehicleDims,
   cogPosition,
+  cogTrail,
+  axleData,
+  engineResult,
+  securements = [],
   onSelectLoad,
   onMoveLoad,
   onValidateDrag,
@@ -211,6 +217,7 @@ export function Scene3D({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<EnhancedOrbitControls | null>(null);
   const loadMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
+  const securementsGroupRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const animationFrameRef = useRef<number>();
   const dragPlaneRef = useRef<THREE.Plane | null>(null);
@@ -306,6 +313,13 @@ export function Scene3D({
         break;
     }
     scene.add(vehicleModel);
+
+    // Securements rendering
+    if (securements && securements.length > 0) {
+      const securementGroup = createSecurementGroup(securements);
+      securementsGroupRef.current = securementGroup;
+      scene.add(securementGroup);
+    }
 
     // COG indicator
     const cogGeometry = new THREE.SphereGeometry(0.3, 16, 16);
@@ -459,19 +473,23 @@ export function Scene3D({
         let newX = intersectionPointRef.current.x - dragOffsetRef.current.x;
         let newZ = intersectionPointRef.current.z - dragOffsetRef.current.z;
 
-        // Boundary clamping for lead load
+        // HARD BOUNDARY CLAMPING (corner-based, not center-based)
+        // Positions are centers, so we clamp: 0 ≤ center - width/2 AND center + width/2 ≤ vehicleLength
         const leadW = leadLoad.userData.loadW || 1;
         const leadD = leadLoad.userData.loadD || 1;
         newX = Math.max(leadW / 2, Math.min(carL - leadW / 2, newX));
         newZ = Math.max(leadD / 2, Math.min(carW - leadD / 2, newZ));
 
-        // Move entire stack together
+        // Move entire stack together with same clamping
         if (stackMembers && stackOffsets) {
           stackOffsets.forEach(({ group, dx, dy, dz }) => {
             const gw = group.userData.loadW || 1;
             const gd = group.userData.loadD || 1;
-            const gx = Math.max(gw / 2, Math.min(carL - gw / 2, newX + dx));
-            const gz = Math.max(gd / 2, Math.min(carW - gd / 2, newZ + dz));
+            let gx = newX + dx;
+            let gz = newZ + dz;
+            // Apply hard bounds to each stack member
+            gx = Math.max(gw / 2, Math.min(carL - gw / 2, gx));
+            gz = Math.max(gd / 2, Math.min(carW - gd / 2, gz));
             group.position.set(gx, group.position.y, gz);
           });
         } else {
@@ -648,6 +666,40 @@ export function Scene3D({
       cogSphere.position.set(cogPosition.x, platH + cogPosition.y + 0.3, cogPosition.z);
     }
   }, [cogPosition, isInitialized]);
+
+  // Update securements when the prop changes
+  useEffect(() => {
+    if (!sceneRef.current || !isInitialized) return;
+    const scene = sceneRef.current;
+
+    if (!securements || securements.length === 0) {
+      if (securementsGroupRef.current) {
+        scene.remove(securementsGroupRef.current);
+        securementsGroupRef.current.traverse((child) => {
+          if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach(mat => mat.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          }
+        });
+        securementsGroupRef.current = null;
+      }
+      return;
+    }
+
+    if (securementsGroupRef.current) {
+      updateSecurementGroup(securementsGroupRef.current, securements);
+    } else {
+      const securementGroup = createSecurementGroup(securements);
+      securementsGroupRef.current = securementGroup;
+      scene.add(securementGroup);
+    }
+  }, [securements, isInitialized]);
 
   // Hover detection for tooltips
   useEffect(() => {

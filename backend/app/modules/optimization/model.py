@@ -21,6 +21,7 @@ class Optimization(Base):
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"))
     input_json: Mapped[dict] = mapped_column(JSON)
     result_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    securements_json: Mapped[list | None] = mapped_column(JSON, nullable=True)  # List of securement items
     status: Mapped[OptimizationStatus] = mapped_column(SAEnum(OptimizationStatus), index=True)
     efficiency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)

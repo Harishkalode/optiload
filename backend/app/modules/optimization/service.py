@@ -1,4 +1,4 @@
-from app.core.optimization.engine import run_optimization
+from app.core.optimization.engine_v2 import run_optimization
 from app.core.optimization.types import LoadSpec, VehicleSpec
 from app.core.utils.errors import AppError
 from app.modules.loads.repository import LoadRepository
@@ -161,6 +161,7 @@ class OptimizationService:
             result_json["void_volume"] = result.extra_data.get("void_volume", 0)
             result_json["filled_volume"] = result.extra_data.get("filled_volume", 0)
             result_json["loading_sequence"] = result.extra_data.get("loading_sequence", {})
+            result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
 
         efficiency = result.metrics.volume_utilization * 0.5 + result.metrics.weight_utilization * 0.5
         has_errors = any(v.severity == "error" for v in result.violations)

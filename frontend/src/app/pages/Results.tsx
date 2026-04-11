@@ -16,6 +16,7 @@ import type { LoadExplanation } from '../components/results/ExplainabilityPanel'
 import type { ScenarioData } from '../components/results/ScenarioComparisonPanel';
 import { MiniMap } from '../components/results/MiniMap';
 import { LoadInfoPanel, type LoadInfo } from '../components/results/LoadInfoPanel';
+import { SecurementPanel } from '../components/results/SecurementPanel';
 import { toast } from 'sonner';
 import { fetchOptimizationResult, fetchOptimizationHistory } from '../services/domainApi';
 import { motion, AnimatePresence } from 'motion/react';
@@ -196,6 +197,9 @@ export function Results() {
   const [showMiniMap, setShowMiniMap] = useState(true);
   const [physicsEnabled, setPhysicsEnabled] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const [securements, setSecurements] = useState<any[]>([]);
+  const [suggestedSecurements, setSuggestedSecurements] = useState<any[]>([]);
+  const [showSecurementPanel, setShowSecurementPanel] = useState(false);
 
   // ── NEW: Advanced Optimization State ────────────────────────────────────
   const [optimizationObjective, setOptimizationObjective] = useState<OptimizationObjective>('space');
@@ -267,6 +271,12 @@ export function Results() {
             });
             setLoads(apiLoads);
             setOriginalLoads(apiLoads);
+
+            // Fetch securements
+            setSuggestedSecurements(result.suggested_securements ?? []);
+            if (result.securements) {
+              setSecurements(result.securements);
+            }
           } else {
             console.warn('[Results] No placements returned. Vehicle:', vehicle, 'Violations:', violations);
             if (errorMessage) {
@@ -703,6 +713,16 @@ export function Results() {
               >
                 {showMiniMap ? '📍 Map' : '📍 Map'}
               </button>
+              <button
+                onClick={() => setShowSecurementPanel(!showSecurementPanel)}
+                style={{
+                  padding: '4px 8px', borderRadius: 4, border: `1px solid ${showSecurementPanel ? '#0066cc40' : bd}`,
+                  background: showSecurementPanel ? '#0066cc20' : 'transparent', color: showSecurementPanel ? '#0066cc' : muted,
+                  fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                🔒 Securements {securements.length > 0 && `(${securements.length})`}
+              </button>
             </div>
           </div>
 
@@ -717,6 +737,7 @@ export function Results() {
               cogTrail={cogTrail}
               axleData={engineResult.axleLoads}
               engineResult={engineResult}
+              securements={securements}
               onSelectLoad={setSelectedLoad}
               onMoveLoad={handleMoveLoad}
               onValidateDrag={handleValidateDrag}
@@ -755,6 +776,17 @@ export function Results() {
                   })()}
                   isDark={isDark}
                   onClose={() => setSelectedLoad(null)}
+                />
+              </div>
+            )}
+            {/* Securement Panel */}
+            {showSecurementPanel && (
+              <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 50, maxWidth: 400 }}>
+                <SecurementPanel
+                  optimizationId={Number(searchParams.get('id')) || 0}
+                  suggestedSecurements={suggestedSecurements}
+                  onSecurementAdded={(sec) => setSecurements([...securements, sec])}
+                  onSecurementDeleted={(secId) => setSecurements(securements.filter(s => s.id !== secId))}
                 />
               </div>
             )}
