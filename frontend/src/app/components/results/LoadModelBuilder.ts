@@ -17,6 +17,7 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ── Material factories ──────────────────────────────────────────────────────
 
@@ -598,6 +599,10 @@ export function createGenericBoxModel(w: number, h: number, d: number, color: st
 
 /** Load type mapping to model builder */
 const LOAD_MODEL_MAP: Record<string, (w: number, h: number, d: number, color: string) => THREE.Group> = {
+  cube: createGenericBoxModel,
+  cuboid: createGenericBoxModel,
+  irregular: createGenericBoxModel,
+  cylinder: createPaperRollModel,
   paper_roll: createPaperRollModel,
   pallet: createPalletModel,
   coil: createCoilModel,
@@ -607,6 +612,69 @@ const LOAD_MODEL_MAP: Record<string, (w: number, h: number, d: number, color: st
   pipe: createPipeModel,
   lumber: createLumberModel,
 };
+
+const gltfLoader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
+
+export interface LoadVisualSpec {
+  materialType?: string;
+  textureUrl?: string;
+  modelUrl?: string;
+  orientation?: { x?: number; y?: number; z?: number };
+}
+
+function fitGroupToDimensions(group: THREE.Group, w: number, h: number, d: number): void {
+  const bbox = new THREE.Box3().setFromObject(group);
+  const size = bbox.getSize(new THREE.Vector3());
+  if (size.x <= 0 || size.y <= 0 || size.z <= 0) return;
+  const scale = new THREE.Vector3(w / size.x, h / size.y, d / size.z);
+  group.scale.set(scale.x, scale.y, scale.z);
+  const aligned = new THREE.Box3().setFromObject(group);
+  const min = aligned.min;
+  const max = aligned.max;
+  const centerX = (min.x + max.x) / 2;
+  const centerZ = (min.z + max.z) / 2;
+  group.position.set(-centerX, -min.y, -centerZ);
+}
+
+function applyMaterialHints(group: THREE.Group, spec: LoadVisualSpec, color: string) {
+  let texture: THREE.Texture | null = null;
+  if (spec.textureUrl) {
+    texture = textureLoader.load(spec.textureUrl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+  }
+  const materialHints: Record<string, { roughness: number; metalness: number }> = {
+    steel: { roughness: 0.35, metalness: 0.82 },
+    wood: { roughness: 0.88, metalness: 0.05 },
+    paper: { roughness: 0.9, metalness: 0.0 },
+    plastic: { roughness: 0.45, metalness: 0.1 },
+    mixed: { roughness: 0.65, metalness: 0.2 },
+  };
+  const hint = materialHints[spec.materialType || 'mixed'] ?? materialHints.mixed;
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const mat = child.material;
+    if (Array.isArray(mat)) {
+      mat.forEach((m) => {
+        if (m instanceof THREE.MeshStandardMaterial || m instanceof THREE.MeshPhysicalMaterial) {
+          m.color = new THREE.Color(color);
+          m.roughness = hint.roughness;
+          m.metalness = hint.metalness;
+          if (texture) m.map = texture;
+          m.needsUpdate = true;
+        }
+      });
+    } else if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial) {
+      mat.color = new THREE.Color(color);
+      mat.roughness = hint.roughness;
+      mat.metalness = hint.metalness;
+      if (texture) mat.map = texture;
+      mat.needsUpdate = true;
+    }
+  });
+}
 
 /**
  * Creates a realistic 3D model for a load based on its type.
@@ -622,4 +690,45 @@ const LOAD_MODEL_MAP: Record<string, (w: number, h: number, d: number, color: st
 export function createLoadModel(loadType: string, w: number, h: number, d: number, color: string): THREE.Group {
   const builder = LOAD_MODEL_MAP[loadType.toLowerCase()] || createGenericBoxModel;
   return builder(w, h, d, color);
+}
+
+export async function createLoadModelAsync(
+  loadType: string,
+  w: number,
+  h: number,
+  d: number,
+  color: string,
+  visual: LoadVisualSpec = {},
+): Promise<THREE.Group> {
+  if (visual.modelUrl) {
+    try {
+      const gltf = await gltfLoader.loadAsync(visual.modelUrl);
+      const group = new THREE.Group();
+      const root = gltf.scene;
+      group.add(root);
+      fitGroupToDimensions(group, w, h, d);
+      applyMaterialHints(group, visual, color);
+      if (visual.orientation) {
+        group.rotation.set(
+          THREE.MathUtils.degToRad(visual.orientation.x ?? 0),
+          THREE.MathUtils.degToRad(visual.orientation.y ?? 0),
+          THREE.MathUtils.degToRad(visual.orientation.z ?? 0),
+        );
+      }
+      return group;
+    } catch (err) {
+      console.warn('[LoadModelBuilder] GLTF load failed, using procedural fallback:', err);
+    }
+  }
+
+  const procedural = createLoadModel(loadType, w, h, d, color);
+  applyMaterialHints(procedural, visual, color);
+  if (visual.orientation) {
+    procedural.rotation.set(
+      THREE.MathUtils.degToRad(visual.orientation.x ?? 0),
+      THREE.MathUtils.degToRad(visual.orientation.y ?? 0),
+      THREE.MathUtils.degToRad(visual.orientation.z ?? 0),
+    );
+  }
+  return procedural;
 }

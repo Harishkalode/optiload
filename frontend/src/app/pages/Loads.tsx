@@ -9,7 +9,12 @@ import { toast } from 'sonner';
 import { validateLoadForm, type LoadFormErrors } from '../engine/AAREngine';
 import { createLoad, listLoads, deleteLoad } from '../services/loadService';
 
-const defaultLoad = { name: '', customer: '', length: '', width: '', height: '', weight: '', priority: 5, stackable: false, fragile: false, rotatable: true, hazmat: false };
+const defaultLoad = {
+  name: '', customer: '', shape: 'cuboid', length: '', width: '', height: '', diameter: '',
+  loadType: 'carton', materialType: 'steel', textureUrl: '', modelUrl: '',
+  orientationX: '0', orientationY: '0', orientationZ: '0',
+  weight: '', priority: 5, stackable: false, fragile: false, rotatable: true, hazmat: false,
+};
 
 export function Loads() {
   const { isDark, palette } = useTheme();
@@ -79,7 +84,12 @@ export function Loads() {
 
   const handleSave = async () => {
     setSaving(true);
-    const errors = validateLoadForm(form);
+    const validationPayload = {
+      ...form,
+      width: form.shape === 'cylinder' ? form.diameter : form.width,
+      height: form.shape === 'cylinder' ? form.diameter : form.height,
+    };
+    const errors = validateLoadForm(validationPayload);
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       setSaving(false);
@@ -89,14 +99,28 @@ export function Loads() {
     setFormErrors({});
     try {
       await createLoad({
-        type: 'cube',
+        type: form.shape === 'cylinder' ? 'cylinder' : 'cube',
+        shape: form.shape as 'cuboid' | 'cylinder' | 'irregular',
+        load_type: form.loadType,
         dimensions: {
           length: Number(form.length || 0),
-          width: Number(form.width || 0),
-          height: Number(form.height || 0),
+          width: form.shape === 'cylinder' ? Number(form.diameter || 0) : Number(form.width || 0),
+          height: form.shape === 'cylinder' ? Number(form.diameter || 0) : Number(form.height || 0),
+          ...(form.shape === 'cylinder' ? { radius: Number(form.diameter || 0) / 2 } : {}),
         },
         weight: Number(form.weight || 0),
         quantity: 1,
+        diameter: form.shape === 'cylinder' ? Number(form.diameter || 0) : undefined,
+        material_type: form.materialType,
+        texture_url: form.textureUrl || undefined,
+        model_url: form.modelUrl || undefined,
+        orientation: {
+          x: Number(form.orientationX || 0),
+          y: Number(form.orientationY || 0),
+          z: Number(form.orientationZ || 0),
+        },
+        fragile: form.fragile,
+        stackable: form.stackable,
       });
       await loadLoads();
       setShowForm(false);
@@ -274,10 +298,64 @@ export function Loads() {
           </div>
           <div>
             <div style={{ fontSize: '11px', fontWeight: 700, color: text, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Dimensions (meters)</div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Shape</label>
+                <select
+                  style={inputStyle}
+                  value={form.shape}
+                  onChange={e => setForm({ ...form, shape: e.target.value })}
+                >
+                  <option value="cuboid">Cuboid</option>
+                  <option value="cylinder">Cylinder</option>
+                  <option value="irregular" disabled>Irregular (coming soon)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Load Type</label>
+                <select style={inputStyle} value={form.loadType} onChange={e => setForm({ ...form, loadType: e.target.value })}>
+                  {['carton', 'pallet', 'roll', 'coil', 'drum', 'pipe', 'lumber'].map((kind) => (
+                    <option key={kind} value={kind}>{kind}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div style={{ border: `1px dashed ${border}`, borderRadius: 8, padding: 10, fontSize: 11, color: text }}>
+                {form.shape === 'cylinder' ? 'Preview: circular footprint with length along X axis.' : 'Preview: rectangular footprint (L×W×H).'}
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Material</label>
+                <select style={inputStyle} value={form.materialType} onChange={e => setForm({ ...form, materialType: e.target.value })}>
+                  {['steel', 'wood', 'paper', 'plastic', 'mixed'].map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
             <div className="grid grid-cols-3 gap-3">
-              {[['Length', 'length'], ['Width', 'width'], ['Height', 'height']].map(([l, k]) => (
-                <div key={k}><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>{l}</label><input style={inputStyle} type="number" step="0.01" value={(form as any)[k]} onChange={e => setForm({ ...form, [k]: e.target.value })} placeholder="0.00" /></div>
-              ))}
+              <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Length</label><input style={inputStyle} type="number" step="0.01" value={form.length} onChange={e => setForm({ ...form, length: e.target.value })} placeholder="0.00" /></div>
+              {form.shape === 'cylinder' ? (
+                <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Diameter</label><input style={inputStyle} type="number" step="0.01" value={form.diameter} onChange={e => setForm({ ...form, diameter: e.target.value })} placeholder="0.00" /></div>
+              ) : (
+                <>
+                  <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Width</label><input style={inputStyle} type="number" step="0.01" value={form.width} onChange={e => setForm({ ...form, width: e.target.value })} placeholder="0.00" /></div>
+                  <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Height</label><input style={inputStyle} type="number" step="0.01" value={form.height} onChange={e => setForm({ ...form, height: e.target.value })} placeholder="0.00" /></div>
+                </>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Texture URL (optional)</label>
+                <input style={inputStyle} value={form.textureUrl} onChange={e => setForm({ ...form, textureUrl: e.target.value })} placeholder="https://.../albedo.jpg" />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Model URL (GLB/GLTF)</label>
+                <input style={inputStyle} value={form.modelUrl} onChange={e => setForm({ ...form, modelUrl: e.target.value })} placeholder="https://.../asset.glb" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Orientation X°</label><input style={inputStyle} type="number" value={form.orientationX} onChange={e => setForm({ ...form, orientationX: e.target.value })} /></div>
+              <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Orientation Y°</label><input style={inputStyle} type="number" value={form.orientationY} onChange={e => setForm({ ...form, orientationY: e.target.value })} /></div>
+              <div><label style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, display: 'block', marginBottom: 6 }}>Orientation Z°</label><input style={inputStyle} type="number" value={form.orientationZ} onChange={e => setForm({ ...form, orientationZ: e.target.value })} /></div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
