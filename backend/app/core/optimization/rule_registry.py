@@ -46,19 +46,56 @@ class RuleRegistry:
         self._initialized = True
 
     def _load_rules(self):
-        """Load and parse rule_registry_optimized.json."""
+        """Load and parse rule_registry_optimized.json.
+
+        Fallback gracefully if the JSON registry is not available. In plan mode
+        we want backend-driven rules, but at runtime the registry may be absent.
+        In that case, we initialize with an empty registry to keep the system running.
+        """
         json_path = Path(__file__).parent.parent.parent.parent / "backend" / "rule_registry_optimized.json"
         
-        # Fallback: try relative to this file
+        # If the primary path does not exist, attempt a couple of small fallbacks
         if not json_path.exists():
             json_path = Path(__file__).parent.parent.parent / "rule_registry_optimized.json"
-        
-        # Fallback: search from workspace root
         if not json_path.exists():
             json_path = Path("/workspaces/optiload/backend/rule_registry_optimized.json")
 
         if not json_path.exists():
-            raise FileNotFoundError(f"rule_registry_optimized.json not found at {json_path}")
+            # Graceful fallback: no registry loaded
+            print("[RULE REGISTRY] rule_registry_optimized.json not found. Using in-memory default registry with core rules.")
+            # Minimal set of core rules to preserve basic validation flow without JSON
+            core_rules = [
+                Rule(
+                    rule_id="3.5.1",
+                    category="center of gravity",
+                    description="Combined CG height must not exceed 98 inches above rail",
+                    formula_or_algorithm=None,
+                    limits_or_values="≤ 98 in above top of rail",
+                    priority="High",
+                ),
+                Rule(
+                    rule_id="3.2.1",
+                    category="weight limits",
+                    description="Load weight must not exceed car capacity",
+                    formula_or_algorithm=None,
+                    limits_or_values=None,
+                    priority="High",
+                ),
+                Rule(
+                    rule_id="3.2.2",
+                    category="weight distribution",
+                    description="Load on one truck must not exceed half of the load limit",
+                    formula_or_algorithm=None,
+                    limits_or_values=None,
+                    priority="High",
+                ),
+            ]
+            for rule in core_rules:
+                self._rules_by_id[rule.rule_id] = rule
+                if rule.category not in self._rules_by_category:
+                    self._rules_by_category[rule.category] = []
+                self._rules_by_category[rule.category].append(rule)
+            return
 
         with open(json_path) as f:
             raw_rules = json.load(f)

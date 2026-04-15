@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Grid3X3, List, Package,   Trash2, Filter, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Grid3X3, List, Package, Trash2, Filter, RefreshCw, AlertTriangle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { OLCard } from '../components/ui/OLCard';
 import { OLBadge } from '../components/ui/OLBadge';

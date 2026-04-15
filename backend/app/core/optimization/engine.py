@@ -21,6 +21,7 @@ from app.core.optimization.aar_rules import (
     validate_load_bounds,
     validate_longitudinal_balance,
 )
+from app.core.optimization.rule_engine import RuleEngine
 
 
 def expand_loads(loads: list[LoadSpec]) -> list[LoadSpec]:
@@ -246,22 +247,11 @@ def run_optimization(vehicle, loads, constraints=None):
     load_dims = {l.id: _get_dims(l) for l in loads}
     metrics = compute_metrics(vehicle, placements, load_weights, load_dims)
 
-    print("\n[Phase 4] Validating AAR rules...")
-    violations, warnings = [], []
-    for v in validate_combined_cg(vehicle, placements, load_weights):
-        (violations if v.severity == "error" else warnings).append(v)
-    for v in validate_axle_loads(vehicle, placements, load_weights):
-        (violations if v.severity == "error" else warnings).append(v)
-    for v in validate_lateral_balance(vehicle, placements, load_weights):
-        (violations if v.severity == "error" else warnings).append(v)
-    for v in validate_longitudinal_balance(vehicle, placements, load_weights):
-        (violations if v.severity == "error" else warnings).append(v)
-    for v in validate_load_bounds(vehicle, placements, load_dims):
-        violations.append(v)
-    for v in check_collisions(placements, load_dims):
-        violations.append(v)
-    for v in validate_hazmat_separation(placements, {l.id: l.hazmat_class for l in loads}):
-        violations.append(v)
+    print("\n[Phase 4] Validating AAR rules (via backend rule engine)...")
+    rule_engine = RuleEngine()
+    violations, warnings = rule_engine.evaluate(
+        vehicle, placements, loads, load_weights, load_dims
+    )
 
     print("\n[Phase 4b] Material stability analysis...")
     from app.core.optimization.materials import analyze_stability

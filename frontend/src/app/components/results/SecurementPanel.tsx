@@ -1,4 +1,4 @@
-"""SecurementPanel.tsx - UI for managing securements (straps, airbags, blocks, etc.)"""
+// """SecurementPanel.tsx - UI for managing securements (straps, airbags, blocks, etc.)"""
 
 import React, { useState, useEffect } from 'react';
 

@@ -217,7 +217,8 @@ export function Results() {
   });
   const [scenarios, setScenarios] = useState<ScenarioData[]>([]);
 
-  const bd  = isDark ? '#1E2A38' : '#E2E8F0';
+  const bd    = isDark ? '#1E2A38' : '#E2E8F0';
+  const muted = isDark ? '#475569' : '#94A3B8';
 
   useEffect(() => {
     const id = searchParams.get('id');

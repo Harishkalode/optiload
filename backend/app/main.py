@@ -122,6 +122,13 @@ def on_startup() -> None:
     if settings.is_production and settings.allow_public_registration:
         logger.warning("Public self-service registration is enabled in production; disable unless intended.")
 
+    # Auto-run lightweight DB migrations if needed (non-fatal on failure)
+    try:
+        from app.core.database.migration_autorun import ensure_securements_json_exists
+        ensure_securements_json_exists()
+    except Exception:
+        logger.exception("Auto-migration check failed during startup; continuing without DB migration.")
+
     from app.core.database.session import SessionLocal
 
     db = SessionLocal()
