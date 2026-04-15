@@ -1,6 +1,7 @@
 // """SecurementPanel.tsx - UI for managing securements (straps, airbags, blocks, etc.)"""
 
 import React, { useState, useEffect } from 'react';
+import { apiRequest } from '../../services/http';
 
 interface Securement {
   id: number;
@@ -21,17 +22,17 @@ interface SecurementPanelProps {
 }
 
 const SECUREMENT_TYPES = [
-  { value: 'airbag_level_2', label: 'Airbag Level 2 (≤75k lb)' },
-  { value: 'airbag_level_3', label: 'Airbag Level 3 (≤160k)' },
-  { value: 'airbag_level_4', label: 'Airbag Level 4 (≤216k)' },
-  { value: 'airbag_level_5', label: 'Airbag Level 5 (≤216k)' },
-  { value: 'steel_strap', label: 'Steel Strap' },
-  { value: 'nonmetallic_strap', label: 'Nonmetallic Strap' },
-  { value: 'riser', label: 'Riser/Pad' },
-  { value: 'rubber_mat', label: 'Rubber Mat' },
-  { value: 'void_filler', label: 'Void Filler' },
-  { value: 'chock', label: 'Chock Block' },
-];
+  { value: 'steel_strap', label: 'Steel Strap', category: 'Straps', tooltip: 'High-tension restraint for heavy loads.' },
+  { value: 'nonmetallic_strap', label: 'Nonmetallic Strap', category: 'Straps', tooltip: 'Flexible restraint for delicate surfaces.' },
+  { value: 'airbag_level_2', label: 'Airbag Level 2 (≤75k lb)', category: 'Airbags', tooltip: 'Void fill for light/moderate forces.' },
+  { value: 'airbag_level_3', label: 'Airbag Level 3 (≤160k)', category: 'Airbags', tooltip: 'Medium-duty lateral force dampening.' },
+  { value: 'airbag_level_4', label: 'Airbag Level 4 (≤216k)', category: 'Airbags', tooltip: 'Heavy-duty void control for rail motion.' },
+  { value: 'airbag_level_5', label: 'Airbag Level 5 (≤216k)', category: 'Airbags', tooltip: 'Max bladder reinforcement class.' },
+  { value: 'chock', label: 'Chock Block', category: 'Bars', tooltip: 'Rigid anti-roll base block.' },
+  { value: 'riser', label: 'Riser/Pad', category: 'Bars', tooltip: 'Raises and levels contact surfaces.' },
+  { value: 'rubber_mat', label: 'Rubber Mat', category: 'Bars', tooltip: 'Adds friction to reduce sliding.' },
+  { value: 'void_filler', label: 'Void Filler', category: 'Airbags', tooltip: 'Filler when airbag is not feasible.' },
+] as const;
 
 export const SecurementPanel: React.FC<SecurementPanelProps> = ({
   optimizationId,
@@ -41,6 +42,9 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
 }) => {
   const [securements, setSecurements] = useState<Securement[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<'All' | 'Straps' | 'Airbags' | 'Bars'>('All');
+  const [undoStack, setUndoStack] = useState<Securement[][]>([]);
+  const [redoStack, setRedoStack] = useState<Securement[][]>([]);
   const [formData, setFormData] = useState<Partial<Securement>>({
     type: 'airbag_level_4',
     position: [5, 0.5, 2.5],
@@ -55,11 +59,8 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
 
   const fetchSecurements = async () => {
     try {
-      const response = await fetch(`/api/optimization/${optimizationId}/securements`);
-      const data = await response.json();
-      if (data.success) {
-        setSecurements(data.data.securements || []);
-      }
+      const data = await apiRequest<{ securements: Securement[] }>(`/optimization/${optimizationId}/securements`);
+      setSecurements(data.securements || []);
     } catch (err) {
       console.error('Failed to fetch securements:', err);
     }
@@ -68,24 +69,22 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
   const handleAddSecurement = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/optimization/${optimizationId}/securements`, {
+      const data = await apiRequest<{ id: number; securement: Securement }>(`/optimization/${optimizationId}/securements`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      const data = await response.json();
-      if (data.success) {
-        setSecurements([...securements, data.data.securement]);
-        if (onSecurementAdded) {
-          onSecurementAdded(data.data.securement);
-        }
-        setShowAddModal(false);
-        setFormData({
-          type: 'airbag_level_4',
-          position: [5, 0.5, 2.5],
-          load_id: 0,
-        });
+      setUndoStack((prev) => [...prev, securements]);
+      setRedoStack([]);
+      setSecurements([...securements, data.securement]);
+      if (onSecurementAdded) {
+        onSecurementAdded(data.securement);
       }
+      setShowAddModal(false);
+      setFormData({
+        type: 'airbag_level_4',
+        position: [5, 0.5, 2.5],
+        load_id: 0,
+      });
     } catch (err) {
       console.error('Failed to add securement:', err);
     } finally {
@@ -96,16 +95,15 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
   const handleDeleteSecurement = async (secId: number) => {
     if (!window.confirm('Delete this securement?')) return;
     try {
-      const response = await fetch(
-        `/api/optimization/${optimizationId}/securements/${secId}`,
+      await apiRequest<{ deleted: number }>(
+        `/optimization/${optimizationId}/securements/${secId}`,
         { method: 'DELETE' }
       );
-      const data = await response.json();
-      if (data.success) {
-        setSecurements(securements.filter(s => s.id !== secId));
-        if (onSecurementDeleted) {
-          onSecurementDeleted(secId);
-        }
+      setUndoStack((prev) => [...prev, securements]);
+      setRedoStack([]);
+      setSecurements(securements.filter(s => s.id !== secId));
+      if (onSecurementDeleted) {
+        onSecurementDeleted(secId);
       }
     } catch (err) {
       console.error('Failed to delete securement:', err);
@@ -121,20 +119,41 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Securements</h3>
-        <button
-          onClick={() => setShowAddModal(true)}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '12px',
-          }}
-        >
-          + Add
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => {
+            if (undoStack.length === 0) return;
+            const previous = undoStack[undoStack.length - 1];
+            setUndoStack(undoStack.slice(0, -1));
+            setRedoStack((prev) => [...prev, securements]);
+            setSecurements(previous);
+          }} disabled={undoStack.length === 0} style={{ padding: '6px 10px', fontSize: 12, opacity: undoStack.length === 0 ? 0.5 : 1 }}>Undo</button>
+          <button onClick={() => {
+            if (redoStack.length === 0) return;
+            const next = redoStack[redoStack.length - 1];
+            setRedoStack(redoStack.slice(0, -1));
+            setUndoStack((prev) => [...prev, securements]);
+            setSecurements(next);
+          }} disabled={redoStack.length === 0} style={{ padding: '6px 10px', fontSize: 12, opacity: redoStack.length === 0 ? 0.5 : 1 }}>Redo</button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            + Add
+          </button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {(['All', 'Straps', 'Airbags', 'Bars'] as const).map((cat) => (
+          <button key={cat} onClick={() => setCategoryFilter(cat)} style={{ padding: '4px 8px', fontSize: 11, borderRadius: 12, border: '1px solid #cbd5e1', background: categoryFilter === cat ? '#0ea5e915' : '#fff' }}>{cat}</button>
+        ))}
       </div>
 
       {/* Suggested Securements */}
@@ -184,7 +203,11 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
             No securements added
           </div>
         ) : (
-          securements.map(sec => (
+          securements.filter(sec => {
+            if (categoryFilter === 'All') return true;
+            const meta = SECUREMENT_TYPES.find(t => t.value === sec.type);
+            return meta?.category === categoryFilter;
+          }).map(sec => (
             <div
               key={sec.id}
               style={{
@@ -270,12 +293,15 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
                   fontSize: '14px',
                 }}
               >
-                {SECUREMENT_TYPES.map(t => (
+                {SECUREMENT_TYPES.filter(t => categoryFilter === 'All' || t.category === categoryFilter).map(t => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>
                 ))}
               </select>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                {SECUREMENT_TYPES.find(t => t.value === formData.type)?.tooltip}
+              </div>
             </div>
 
             <div style={{ marginBottom: '12px' }}>
@@ -340,7 +366,7 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
               </button>
               <button
                 onClick={handleAddSecurement}
-                disabled={loading}
+                disabled={loading || !formData.load_id}
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#007bff',
@@ -349,10 +375,10 @@ export const SecurementPanel: React.FC<SecurementPanelProps> = ({
                   borderRadius: '4px',
                   cursor: 'pointer',
                   fontSize: '12px',
-                  opacity: loading ? 0.6 : 1,
+                  opacity: loading || !formData.load_id ? 0.6 : 1,
                 }}
               >
-                {loading ? 'Adding...' : 'Add Securement'}
+                {loading ? 'Adding...' : !formData.load_id ? 'Load ID required' : 'Add Securement'}
               </button>
             </div>
           </div>
