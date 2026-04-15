@@ -5,7 +5,7 @@ import { EngineOutput } from '../../engine/AAREngine';
 import {
   createFlatcarModel, createBoxcarModel, createGondolaModel, createReeferModel, createBogie,
 } from './VehicleModelBuilder';
-import { createLoadModel } from './LoadModelBuilder';
+import { createLoadModelAsync } from './LoadModelBuilder';
 import { createSecurementGroup, updateSecurementGroup } from './SecurementRenderer';
 
 // ── TYPES ─────────────────────────────────────────────────────────────────
@@ -15,6 +15,11 @@ export interface Load3D {
   compatScore: number; stackGroup: string; rotationAllowed: boolean;
   x: number; y: number; z: number; w: number; h: number; d: number;
   shape?: string;
+  loadType?: string;
+  materialType?: string;
+  textureUrl?: string;
+  modelUrl?: string;
+  orientation?: { x?: number; y?: number; z?: number };
   color: string; hasViolation?: boolean;
 }
 
@@ -561,6 +566,7 @@ export function Scene3D({
     if (!sceneRef.current || !isInitialized) return;
 
     const scene = sceneRef.current;
+    let cancelled = false;
 
     // Remove old load meshes
     loadMeshesRef.current.forEach(group => {
@@ -581,10 +587,12 @@ export function Scene3D({
     });
     loadMeshesRef.current.clear();
 
-    // Add new load meshes using realistic product models
-    loads.forEach(load => {
+    const build = async () => {
+      // Add new load meshes using realistic product models
+      for (const load of loads) {
+        if (cancelled) break;
       // Determine load type from name and create realistic model
-      let loadType = load.shape || 'box';
+      let loadType = load.loadType || load.shape || 'box';
       const nameLower = load.name.toLowerCase();
       if (!load.shape) {
         if (nameLower.includes('paper') || nameLower.includes('roll')) loadType = 'paper_roll';
@@ -598,7 +606,13 @@ export function Scene3D({
         else if (nameLower.includes('crate')) loadType = 'carton';
       }
 
-      const loadGroup = createLoadModel(loadType, load.w, load.h, load.d, load.color);
+      const loadGroup = await createLoadModelAsync(loadType, load.w, load.h, load.d, load.color, {
+        materialType: load.materialType,
+        textureUrl: load.textureUrl,
+        modelUrl: load.modelUrl,
+        orientation: load.orientation,
+      });
+      if (cancelled) break;
 
       // Position the load group (corner coords → center)
       loadGroup.position.set(load.x + load.w/2, platH + load.y + load.h/2, load.z + load.d/2);
@@ -658,7 +672,13 @@ export function Scene3D({
       scene.add(loadGroup);
       // Store the main group (not individual meshes)
       loadMeshesRef.current.set(load.id, loadGroup as any);
-    });
+      }
+    };
+    void build();
+
+    return () => {
+      cancelled = true;
+    };
   }, [loads, isInitialized]);
 
   // Update theme

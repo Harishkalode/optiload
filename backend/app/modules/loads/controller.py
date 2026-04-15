@@ -16,6 +16,31 @@ def _service(db: Session) -> LoadService:
     return LoadService(LoadRepository(db))
 
 
+def _serialize_load(l):
+    dims = l.dimensions or {}
+    return {
+        "id": l.id,
+        "organization_id": l.organization_id,
+        "type": l.type.value,
+        "shape": dims.get("shape", l.type.value),
+        "load_type": dims.get("load_type", l.type.value),
+        "dimensions": dims,
+        "material_type": dims.get("material_type"),
+        "texture_url": dims.get("texture_url"),
+        "model_url": dims.get("model_url"),
+        "orientation": dims.get("orientation"),
+        "weight": l.weight,
+        "quantity": l.quantity,
+        "cg_x": l.cg_x,
+        "cg_y": l.cg_y,
+        "cg_z": l.cg_z,
+        "fragile": l.fragile,
+        "stackable": l.stackable,
+        "hazmat_class": l.hazmat_class,
+        "diameter": l.diameter,
+    }
+
+
 @router.get("")
 def list_loads(page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=200),
                db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -25,11 +50,7 @@ def list_loads(page: int = Query(default=1, ge=1), page_size: int = Query(defaul
     loads = _service(db).list_loads(org_id)
     start = (page - 1) * page_size
     sliced = loads[start: start + page_size]
-    return success_response({"items": [
-        {"id": l.id, "organization_id": l.organization_id, "type": l.type.value, "dimensions": l.dimensions,
-         "weight": l.weight, "quantity": l.quantity, "cg_x": l.cg_x, "cg_y": l.cg_y, "cg_z": l.cg_z,
-         "fragile": l.fragile, "stackable": l.stackable, "hazmat_class": l.hazmat_class, "diameter": l.diameter}
-        for l in sliced], "total": len(loads), "page": page, "page_size": page_size})
+    return success_response({"items": [_serialize_load(l) for l in sliced], "total": len(loads), "page": page, "page_size": page_size})
 
 
 @router.get("/{load_id}")
@@ -38,10 +59,7 @@ def get_load(load_id: int, db: Session = Depends(get_db), current_user=Depends(g
     if org_id is None:
         raise AppError("ORG_REQUIRED", "organization context is required")
     l = _service(db).get_load(org_id, load_id)
-    return success_response(
-        {"id": l.id, "organization_id": l.organization_id, "type": l.type.value, "dimensions": l.dimensions,
-         "weight": l.weight, "quantity": l.quantity, "cg_x": l.cg_x, "cg_y": l.cg_y, "cg_z": l.cg_z,
-         "fragile": l.fragile, "stackable": l.stackable, "hazmat_class": l.hazmat_class, "diameter": l.diameter})
+    return success_response(_serialize_load(l))
 
 
 @router.post("")

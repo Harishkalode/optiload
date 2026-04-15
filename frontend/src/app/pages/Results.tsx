@@ -276,7 +276,12 @@ export function Results() {
                 w: width,
                 h: height,
                 d: depth,
-                shape: loadType,
+                shape: p.load?.shape ?? loadType,
+                loadType: p.load?.load_type ?? loadType,
+                materialType: p.load?.material_type,
+                textureUrl: p.load?.texture_url,
+                modelUrl: p.load?.model_url,
+                orientation: p.load?.orientation,
                 color: ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4','#EC4899','#84CC16'][i % 8],
                 hasViolation: false,
               };
