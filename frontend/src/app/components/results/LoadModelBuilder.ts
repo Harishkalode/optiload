@@ -598,6 +598,10 @@ export function createGenericBoxModel(w: number, h: number, d: number, color: st
 
 /** Load type mapping to model builder */
 const LOAD_MODEL_MAP: Record<string, (w: number, h: number, d: number, color: string) => THREE.Group> = {
+  cube: createGenericBoxModel,
+  cuboid: createGenericBoxModel,
+  irregular: createGenericBoxModel,
+  cylinder: createPaperRollModel,
   paper_roll: createPaperRollModel,
   pallet: createPalletModel,
   coil: createCoilModel,

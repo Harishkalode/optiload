@@ -7,6 +7,7 @@ export interface ApiLoad {
   dimensions: Record<string, number>;
   weight: number;
   quantity?: number;
+  diameter?: number;
 }
 
 export interface LoadListResponse {
@@ -20,7 +21,15 @@ export async function listLoads(page = 1, pageSize = 20): Promise<LoadListRespon
   return apiRequest<LoadListResponse>(`/loads?page=${page}&page_size=${pageSize}`);
 }
 
-export async function createLoad(payload: { type: string; dimensions: Record<string, number>; weight: number; quantity?: number }): Promise<{ id: number }> {
+export async function createLoad(payload: {
+  type: string;
+  dimensions: Record<string, number>;
+  weight: number;
+  quantity?: number;
+  diameter?: number;
+  fragile?: boolean;
+  stackable?: boolean;
+}): Promise<{ id: number }> {
   return apiRequest<{ id: number }>('/loads', {
     method: 'POST',
     body: JSON.stringify(payload),

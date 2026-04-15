@@ -54,7 +54,7 @@ function autoBalance(loads: Load3D[], carLength = 20): Load3D[] {
 function toEngineLoads(loads: Load3D[]): LoadItem[] {
   return loads.map(l => ({
     id: l.id, x: l.x, y: l.y, z: l.z, w: l.w, h: l.h, d: l.d,
-    weight: l.weight, isRoll: false,
+    weight: l.weight, isRoll: l.shape === 'cylinder' || l.shape === 'paper_roll' || l.shape === 'coil',
   }));
 }
 
@@ -247,25 +247,36 @@ export function Results() {
           }
 
           if (placements.length > 0) {
+            const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+            const vehicleLength = vehicle?.length_m ?? 20;
+            const vehicleWidth = vehicle?.width_m ?? 3.2;
             const apiLoads: Load3D[] = placements.map((p: any, i: number) => {
               const ld = p.load?.dimensions ?? {};
+              const width = p.placed_w ?? ld.length ?? 1;
+              const height = p.placed_h ?? ld.height ?? 1;
+              const depth = p.placed_d ?? ld.width ?? 1;
+              const x = clamp(p.x ?? 0, 0, Math.max(0, vehicleLength - width));
+              const y = Math.max(0, p.y ?? 0);
+              const z = clamp(p.z ?? 0, 0, Math.max(0, vehicleWidth - depth));
+              const loadType = p.load?.type ?? 'cube';
               return {
-                id: `L-${p.load_id}`,
+                id: `L-${p.load_id}-${i}`,
                 name: p.load?.name ?? `Load ${p.load_id}`,
                 weight: p.load?.weight ?? 0,
-                volume: (ld.length ?? 0) * (ld.width ?? 0) * (ld.height ?? 0),
+                volume: width * height * depth,
                 fragile: p.load?.fragile ?? false,
                 priority: p.load?.priority ?? 5,
                 customer: p.load?.customer ?? '',
                 compatScore: 90,
-                stackGroup: 'A',
+                stackGroup: p.stack_group ? `${p.stack_group}` : `L-${p.load_id}-${i}`,
                 rotationAllowed: true,
-                x: p.x ?? 0,
-                y: p.y ?? 0,
-                z: p.z ?? 0,
-                w: ld.length ?? 1,
-                h: ld.height ?? 1,
-                d: ld.width ?? 1,
+                x,
+                y,
+                z,
+                w: width,
+                h: height,
+                d: depth,
+                shape: loadType,
                 color: ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4','#EC4899','#84CC16'][i % 8],
                 hasViolation: false,
               };

@@ -14,6 +14,7 @@ export interface Load3D {
   fragile: boolean; priority: number; customer: string;
   compatScore: number; stackGroup: string; rotationAllowed: boolean;
   x: number; y: number; z: number; w: number; h: number; d: number;
+  shape?: string;
   color: string; hasViolation?: boolean;
 }
 
@@ -226,6 +227,7 @@ export function Scene3D({
   const isDraggingRef = useRef(false);
   const draggedLoadIdRef = useRef<string | null>(null);
   const intersectionPointRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const SNAP_GRID_SIZE = 0.05;
 
   useEffect(() => {
     if (!containerRef.current || isInitialized) return;
@@ -473,26 +475,36 @@ export function Scene3D({
         let newX = intersectionPointRef.current.x - dragOffsetRef.current.x;
         let newZ = intersectionPointRef.current.z - dragOffsetRef.current.z;
 
-        // HARD BOUNDARY CLAMPING (corner-based, not center-based)
-        // Positions are centers, so we clamp: 0 ≤ center - width/2 AND center + width/2 ≤ vehicleLength
-        const leadW = leadLoad.userData.loadW || 1;
-        const leadD = leadLoad.userData.loadD || 1;
-        newX = Math.max(leadW / 2, Math.min(carL - leadW / 2, newX));
-        newZ = Math.max(leadD / 2, Math.min(carW - leadD / 2, newZ));
+        newX = Math.round(newX / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+        newZ = Math.round(newZ / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+        const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-        // Move entire stack together with same clamping
         if (stackMembers && stackOffsets) {
-          stackOffsets.forEach(({ group, dx, dy, dz }) => {
+          const bounds = stackOffsets.map(({ group, dx, dz }) => {
             const gw = group.userData.loadW || 1;
             const gd = group.userData.loadD || 1;
-            let gx = newX + dx;
-            let gz = newZ + dz;
-            // Apply hard bounds to each stack member
-            gx = Math.max(gw / 2, Math.min(carL - gw / 2, gx));
-            gz = Math.max(gd / 2, Math.min(carW - gd / 2, gz));
-            group.position.set(gx, group.position.y, gz);
+            return {
+              minX: gw / 2 - dx,
+              maxX: carL - gw / 2 - dx,
+              minZ: gd / 2 - dz,
+              maxZ: carW - gd / 2 - dz,
+            };
+          });
+          const allowedMinX = Math.max(...bounds.map(b => b.minX));
+          const allowedMaxX = Math.min(...bounds.map(b => b.maxX));
+          const allowedMinZ = Math.max(...bounds.map(b => b.minZ));
+          const allowedMaxZ = Math.min(...bounds.map(b => b.maxZ));
+          newX = clamp(newX, allowedMinX, allowedMaxX);
+          newZ = clamp(newZ, allowedMinZ, allowedMaxZ);
+
+          stackOffsets.forEach(({ group, dx, dz }) => {
+            group.position.set(newX + dx, group.position.y, newZ + dz);
           });
         } else {
+          const leadW = leadLoad.userData.loadW || 1;
+          const leadD = leadLoad.userData.loadD || 1;
+          newX = clamp(newX, leadW / 2, carL - leadW / 2);
+          newZ = clamp(newZ, leadD / 2, carW - leadD / 2);
           leadLoad.position.set(newX, leadLoad.position.y, newZ);
         }
 
@@ -572,17 +584,19 @@ export function Scene3D({
     // Add new load meshes using realistic product models
     loads.forEach(load => {
       // Determine load type from name and create realistic model
-      let loadType = 'box';
+      let loadType = load.shape || 'box';
       const nameLower = load.name.toLowerCase();
-      if (nameLower.includes('paper') || nameLower.includes('roll')) loadType = 'paper_roll';
-      else if (nameLower.includes('pallet')) loadType = 'pallet';
-      else if (nameLower.includes('coil')) loadType = 'coil';
-      else if (nameLower.includes('carton') || nameLower.includes('box')) loadType = 'carton';
-      else if (nameLower.includes('drum') || nameLower.includes('barrel')) loadType = 'drum';
-      else if (nameLower.includes('bag') || nameLower.includes('sack')) loadType = 'bag';
-      else if (nameLower.includes('pipe') || nameLower.includes('tube')) loadType = 'pipe';
-      else if (nameLower.includes('lumber') || nameLower.includes('wood')) loadType = 'lumber';
-      else if (nameLower.includes('crate')) loadType = 'carton';
+      if (!load.shape) {
+        if (nameLower.includes('paper') || nameLower.includes('roll')) loadType = 'paper_roll';
+        else if (nameLower.includes('pallet')) loadType = 'pallet';
+        else if (nameLower.includes('coil')) loadType = 'coil';
+        else if (nameLower.includes('carton') || nameLower.includes('box')) loadType = 'carton';
+        else if (nameLower.includes('drum') || nameLower.includes('barrel')) loadType = 'drum';
+        else if (nameLower.includes('bag') || nameLower.includes('sack')) loadType = 'bag';
+        else if (nameLower.includes('pipe') || nameLower.includes('tube')) loadType = 'pipe';
+        else if (nameLower.includes('lumber') || nameLower.includes('wood')) loadType = 'lumber';
+        else if (nameLower.includes('crate')) loadType = 'carton';
+      }
 
       const loadGroup = createLoadModel(loadType, load.w, load.h, load.d, load.color);
 

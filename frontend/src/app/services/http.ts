@@ -10,7 +10,8 @@ export interface ApiEnvelope<T> {
   error: ApiErrorPayload | null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+const API_BASE_URL = rawApiBaseUrl.endsWith('/') ? rawApiBaseUrl.slice(0, -1) : rawApiBaseUrl;
 
 let refreshInFlight: Promise<boolean> | null = null;
 
