@@ -60,6 +60,12 @@ class LoadPlacement:
     placed_w: float = 0.0
     placed_h: float = 0.0
     placed_d: float = 0.0
+    cog_x: float = 0.0
+    cog_y: float = 0.0
+    cog_z: float = 0.0
+    contact_type: str = "none"  # floor, wall, load, riser
+    contact_surface_area: float = 0.0
+    support_points: list[tuple[float, float, float]] | None = None
 
 
 @dataclass

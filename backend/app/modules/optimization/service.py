@@ -132,6 +132,9 @@ class OptimizationService:
                     "x": p.x, "y": p.y, "z": p.z,
                     "rx": p.rx, "ry": p.ry, "rz": p.rz,
                     "rotated": p.rotated,
+                    "cog_x": p.cog_x, "cog_y": p.cog_y, "cog_z": p.cog_z,
+                    "contact_type": p.contact_type,
+                    "contact_surface_area": p.contact_surface_area,
                     "load": load_meta.get(p.load_id, {}),
                 }
                 for p in result.placements
@@ -159,6 +162,7 @@ class OptimizationService:
 
         # Include extra analysis data
         if result.extra_data:
+            result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
             result_json["material_analysis"] = result.extra_data.get("material_analysis", [])
             result_json["compression_analysis"] = result.extra_data.get("compression_analysis", [])
             result_json["weight_distribution"] = result.extra_data.get("weight_distribution", {})
