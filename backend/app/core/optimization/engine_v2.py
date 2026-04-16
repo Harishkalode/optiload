@@ -91,6 +91,7 @@ class PlacementEngine:
         
         placements: List[LoadPlacement] = []
         placement_violations: List[AARViolation] = []
+        violation_set = set()  # Track (rule, load_id) to avoid duplicates
         
         v_len, v_wid, v_ht = vehicle.length_m, vehicle.width_m, vehicle.height_m
         load_map = {l.id: l for l in loads}
@@ -101,11 +102,14 @@ class PlacementEngine:
             
             # Skip if load too big
             if w > v_len + self.eps or d > v_wid + self.eps or h > v_ht + self.eps:
-                placement_violations.append(AARViolation(
-                    rule="placement_oversized",
-                    message=f"Load {load.id} (dims {w}×{h}×{d}) exceeds vehicle {v_len}×{v_ht}×{v_wid}",
-                    severity="error"
-                ))
+                violation_key = ("placement_oversized", load.id)
+                if violation_key not in violation_set:
+                    violation_set.add(violation_key)
+                    placement_violations.append(AARViolation(
+                        rule="placement_oversized",
+                        message=f"Load {load.id} (dims {w}×{h}×{d}) exceeds vehicle {v_len}×{v_ht}×{v_wid}",
+                        severity="error"
+                    ))
                 continue
             
             # Deterministic Y candidates: floor, then each occupied top surface
@@ -148,6 +152,7 @@ class PlacementEngine:
                             cog_x=x + w / 2, cog_y=y + h / 2, cog_z=z + d / 2,
                             contact_type="floor" if y < self.eps else "load",
                             contact_surface_area=w * d,
+                            load=load,
                         )
                         
                         # Validate candidate

@@ -285,7 +285,7 @@ class PhysicsEngine:
                 # Must have at least one adjacent cylinder
                 has_adjacent = False
                 for existing in existing_placements:
-                    if existing.type in ("cylinder", "paper_roll", "coil"):
+                    if existing.load and existing.load.type in ("cylinder", "paper_roll", "coil"):
                         # Check if touching
                         if (abs(placement.y - existing.y) < self.eps and
                             abs(placement.z + placement.placed_d - existing.z) < 0.05 or

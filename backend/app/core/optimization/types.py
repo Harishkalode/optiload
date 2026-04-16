@@ -120,6 +120,7 @@ class LoadPlacement:
     cog_z: float = 0.0  # Load's center of gravity Z
     contact_type: str = "none"  # floor, wall, load, riser
     contact_surface_area: float = 0.0
+    load: 'LoadSpec | None' = None  # Reference to original load spec
     contact_surfaces: list[ContactSurface] = field(default_factory=list)
     support_points: list[tuple[float, float, float]] | None = None
     is_stable: bool = True  # Physics stability check
