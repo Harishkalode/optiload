@@ -2,6 +2,7 @@
 
 import pytest
 from app.core.optimization.engine_v2 import run_optimization
+from app.core.optimization.physics_engine import PhysicsEngine
 from app.core.optimization.types import LoadSpec, VehicleSpec, LoadPlacement
 from app.core.optimization.aar_rules import check_collisions
 
@@ -169,6 +170,42 @@ class TestAAREvaluation:
         r = run_optimization(v, loads)
         assert "suggested_securements" in r.extra_data
         assert isinstance(r.extra_data["suggested_securements"], list)
+
+
+class TestPhysicsEngineBalance:
+    """Verify physics balance calculations handle repeated load quantities."""
+
+    def test_repeated_load_ids_lateral_balance_uses_total_placed_weight(self):
+        v = make_vehicle(width=2.0)
+        load = make_load(id=9, weight=1000, quantity=10)
+        engine = PhysicsEngine()
+        placements = [
+            LoadPlacement(
+                load_id=9, x=0.0, y=0.0, z=0.0,
+                rx=0, ry=0, rz=0, rotated=False,
+                placed_w=1.0, placed_h=1.0, placed_d=1.0,
+            )
+            for _ in range(10)
+        ]
+
+        violations = engine.validate_lateral_balance(v, placements, [load])
+        assert all(v.details and v.details["imbalance_pct"] <= 100 for v in violations)
+
+    def test_repeated_load_ids_longitudinal_balance_uses_total_placed_weight(self):
+        v = make_vehicle(length=20.0)
+        load = make_load(id=9, weight=1000, quantity=10)
+        engine = PhysicsEngine()
+        placements = [
+            LoadPlacement(
+                load_id=9, x=0.0, y=0.0, z=0.0,
+                rx=0, ry=0, rz=0, rotated=False,
+                placed_w=1.0, placed_h=1.0, placed_d=1.0,
+            )
+            for _ in range(10)
+        ]
+
+        violations = engine.validate_longitudinal_balance(v, placements, [load])
+        assert all(v.details and v.details["imbalance_pct"] <= 100 for v in violations)
 
 
 class TestEdgeCases:

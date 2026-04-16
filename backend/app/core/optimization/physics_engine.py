@@ -27,13 +27,13 @@ class PhysicsEngine:
     def compute_combined_cog(self, vehicle: VehicleSpec, placements: List[LoadPlacement],
                              load_specs: List[LoadSpec]) -> CenterOfGravity:
         """Compute combined center of gravity of vehicle + all loads."""
-        load_map = {l.id: l for l in load_specs}
         load_weights = {l.id: l.weight_kg for l in load_specs}
         
         tare_weight = vehicle.tare_weight_kg or 0
         empty_cg_height_m = (vehicle.empty_cg_height_in or 45) * 0.0254
         
-        total_weight = tare_weight + sum(load_weights.values())
+        total_load_weight = sum(load_weights.get(p.load_id, 0) for p in placements)
+        total_weight = tare_weight + total_load_weight
         if total_weight == 0:
             return CenterOfGravity(x_m=vehicle.length_m/2, y_m=0, z_m=vehicle.width_m/2)
         
@@ -138,7 +138,7 @@ class PhysicsEngine:
                                 load_specs: List[LoadSpec]) -> List[AARViolation]:
         """Check AAR 3.3: Lateral balance within limits."""
         load_weights = {l.id: l.weight_kg for l in load_specs}
-        total_weight = sum(load_weights.values())
+        total_weight = sum(load_weights.get(p.load_id, 0) for p in placements)
         if total_weight == 0:
             return []
         
@@ -183,7 +183,7 @@ class PhysicsEngine:
                                      load_specs: List[LoadSpec]) -> List[AARViolation]:
         """Check AAR longitudinal balance (front-to-back)."""
         load_weights = {l.id: l.weight_kg for l in load_specs}
-        total_weight = sum(load_weights.values())
+        total_weight = sum(load_weights.get(p.load_id, 0) for p in placements)
         if total_weight == 0:
             return []
         
