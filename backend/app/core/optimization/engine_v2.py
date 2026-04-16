@@ -217,9 +217,14 @@ class PlacementEngine:
         )
 
 
-def run_optimization(vehicle: VehicleSpec, loads: List[LoadSpec]) -> OptimizationResult:
+def run_optimization(vehicle: VehicleSpec, loads: List[LoadSpec], constraints: Optional[Dict] = None) -> OptimizationResult:
     """
     Execute full physics-based optimization with constraint validation.
+    
+    Args:
+        vehicle: Vehicle specification
+        loads: List of load specifications
+        constraints: Optional constraint dict (for future extensibility)
     
     Returns OptimizationResult with placements, metrics, violations, and warnings.
     """
