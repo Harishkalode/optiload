@@ -179,7 +179,7 @@ class PlacementEngine:
                 positions.append(round(max(0, center - offset), 3))
             offset += size
         
-        return sorted(set(positions))
+        return positions
     
     def _is_valid_placement(self, candidate: LoadPlacement, load: LoadSpec,
                            existing_placements: List[LoadPlacement],

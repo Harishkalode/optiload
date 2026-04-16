@@ -1,7 +1,7 @@
 """Test suite for AAR-compliant deterministic optimization engine (engine_v2)."""
 
 import pytest
-from app.core.optimization.engine_v2 import run_optimization
+from app.core.optimization.engine_v2 import PlacementEngine, run_optimization
 from app.core.optimization.physics_engine import PhysicsEngine
 from app.core.optimization.types import LoadSpec, VehicleSpec, LoadPlacement
 from app.core.optimization.aar_rules import check_collisions
@@ -206,6 +206,15 @@ class TestPhysicsEngineBalance:
 
         violations = engine.validate_longitudinal_balance(v, placements, [load])
         assert all(v.details and v.details["imbalance_pct"] <= 100 for v in violations)
+
+    def test_center_out_positions_balance_repeated_loads(self):
+        engine = __import__("app.core.optimization.engine_v2", fromlist=["PlacementEngine"]).PlacementEngine()
+        positions = engine._center_out_positions(1.0, 20.0)
+        assert positions[0] == 9.5
+        assert positions[1] == 10.5
+        assert positions[2] == 8.5
+        assert positions[3] == 11.5
+        assert positions[4] == 7.5
 
 
 class TestEdgeCases:
