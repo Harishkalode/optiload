@@ -10,6 +10,7 @@ redis>=5.0.0
 email-validator>=2.1.1
 psycopg2-binary
 ruff
+passlib>=1.7.4
 pyotp>=2.9.0
 qrcode>=7.4.2
 sentry-sdk>=2.0.0
