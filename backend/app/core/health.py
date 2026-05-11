@@ -7,11 +7,62 @@ from app.core.config import settings
 from app.core.database.session import health_check_db
 from app.core.utils.responses import success_response
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 router = APIRouter(tags=["health"])
 
 START_TIME = time.time()
+
+# Optional Prometheus metrics
+_prometheus_registry = None
+_prometheus_metrics_initialized = False
+
+
+def _init_prometheus():
+    global _prometheus_registry, _prometheus_metrics_initialized
+    if _prometheus_metrics_initialized:
+        return
+    try:
+        from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
+        from prometheus_client import REGISTRY as _prometheus_registry
+
+        # Application-level metrics
+        http_requests_total = Counter(
+            "optiload_http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
+        )
+        http_request_duration_seconds = Histogram(
+            "optiload_http_request_duration_seconds",
+            "HTTP request duration in seconds",
+            ["method", "endpoint"],
+            buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+        )
+        db_pool_connections = Gauge(
+            "optiload_db_pool_connections", "Database pool connections", ["state"]
+        )
+        cog_height_inches = Gauge(
+            "optiload_cog_height_inches", "Center of gravity height per AAR 3.5.1"
+        )
+
+        # Store for middleware access
+        _prometheus_registry._optiload_metrics = {
+            "http_requests_total": http_requests_total,
+            "http_request_duration_seconds": http_request_duration_seconds,
+            "db_pool_connections": db_pool_connections,
+            "cog_height_inches": cog_height_inches,
+            "generate_latest": generate_latest,
+            "CONTENT_TYPE_LATEST": CONTENT_TYPE_LATEST,
+        }
+        _prometheus_metrics_initialized = True
+    except ImportError:
+        _prometheus_metrics_initialized = False
+
+
+def get_prometheus_metrics():
+    """Return the prometheus metrics dict if initialized."""
+    _init_prometheus()
+    if _prometheus_registry and hasattr(_prometheus_registry, "_optiload_metrics"):
+        return _prometheus_registry._optiload_metrics
+    return None
 
 
 @router.get("/meta/health")
@@ -59,3 +110,21 @@ def metrics():
         "rate_limit_backend": settings.rate_limit_backend,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
+
+
+@router.get("/meta/prometheus")
+def prometheus_metrics():
+    metrics_dict = get_prometheus_metrics()
+    if not metrics_dict:
+        return PlainTextResponse(
+            "# Prometheus client not installed\n", status_code=200, media_type="text/plain"
+        )
+    try:
+        from prometheus_client import REGISTRY
+
+        data = generate_latest(REGISTRY)
+        return PlainTextResponse(data, media_type="text/plain")
+    except ImportError:
+        return PlainTextResponse(
+            "# Prometheus client not installed\n", status_code=200, media_type="text/plain"
+        )

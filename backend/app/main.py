@@ -1,4 +1,6 @@
 import logging
+import signal
+import sys
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -8,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes.v1 import api_router
 from app.core.config import _DEFAULT_JWT_SECRET, settings
+from app.core.logging_config import setup_logging
 from app.core.middlewares.rate_limit import RateLimitMiddleware
 from app.core.middlewares.request_size import MaxBodySizeMiddleware
 from app.core.middlewares.safe_logging import AccessLogMiddleware
@@ -20,10 +23,37 @@ from app.modules.audit_logs.service import AuditLogService
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService
 
-logger = logging.getLogger("optiload")
+# Initialize logging first so all subsequent output is structured
+logger = setup_logging()
+
+
+_workers: list[object] = []
+
+
+def _init_sentry() -> None:
+    if settings.sentry_dsn:
+        try:
+            import sentry_sdk
+            sentry_sdk.init(
+                dsn=settings.sentry_dsn,
+                environment=settings.environment,
+                traces_sample_rate=0.1,
+                send_default_pii=False,
+            )
+            logger.info("Sentry initialized for environment=%s", settings.environment)
+        except Exception:
+            logger.warning("Failed to initialize Sentry; continuing without.")
+
+
+def _handle_signal(signum: int, _frame: object) -> None:
+    logger.warning("Received signal %d; starting graceful shutdown…", signum)
+    sys.exit(0)
 
 
 def create_app() -> FastAPI:
+    # Initialize error tracking before anything else
+    _init_sentry()
+
     application = FastAPI(
         title=settings.app_name,
         docs_url="/docs" if settings.enable_api_docs else None,
@@ -112,6 +142,10 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+# Register OS signal handlers for graceful shutdown
+signal.signal(signal.SIGTERM, _handle_signal)
+signal.signal(signal.SIGINT, _handle_signal)
 
 
 @app.on_event("startup")
