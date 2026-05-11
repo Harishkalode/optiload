@@ -1,187 +1,207 @@
-"""Securement suggestion engine based on AAR rules 5.x and 6.x."""
+"""
+Securement Engine: AAR-Compliant Load Securement Suggestions - Phase 1.5
 
-from typing import Dict, List
+Suggests securement devices based on:
+- AAR 6.1: Void fillers (airbags) to prevent movement
+- AAR 6.3: Blocking and bracing for incomplete layers
+- AAR 5.x: Straps and tie-downs for stability
+- Hazmat requirements for securement
+
+Goal: Provide actionable recommendations to the loader to ensure safety.
+"""
+
+from dataclasses import dataclass
+from typing import List, Tuple
 from app.core.optimization.types import LoadPlacement, LoadSpec, VehicleSpec
-from app.core.optimization.rule_registry import get_rule_registry
 
 
-class SecurementSuggester:
-    """Generate securement suggestions based on placement and load specs."""
+@dataclass
+class SecurementSuggestion:
+    """Recommendation for a specific securement device."""
+    type: str  # "airbag", "strap", "block", "riser", "mat"
+    location: Tuple[float, float, float]  # (x, y, z) position in vehicle
+    quantity: int
+    reason: str  # AAR rule reference and explanation
+    severity: str  # "critical" (required), "recommended" (best practice)
 
-    def __init__(self):
-        self.registry = get_rule_registry()
 
-    def suggest_securements(self, 
-        placements: List[LoadPlacement],
-        load_specs: List[LoadSpec],
-        vehicle: VehicleSpec
-    ) -> List[Dict]:
-        """Suggest securements: airbags, straps, fillers, risers."""
-        load_map = {l.id: l for l in load_specs}
-        securements = []
+class SecurementEngine:
+    """
+    Analyze placements and suggest securement devices per AAR 2019.
+    """
+    
+    VOID_GAP_THRESHOLD_M = 0.3  # Gaps > 30cm require airbags (AAR 6.1)
+    
+    def suggest_securements(self, placements: List[LoadPlacement],
+                           loads_dict: dict[int, LoadSpec],
+                           vehicle: VehicleSpec) -> List[SecurementSuggestion]:
+        """
+        Analyze final placements and suggest necessary securements.
+        """
+        suggestions = []
+        
+        # 1. Analyze Longitudinal Void Gaps (AAR 6.1)
+        # Identify gaps between loads along the length of the car
+        suggestions.extend(self._analyze_longitudinal_gaps(placements, vehicle))
+        
+        # 2. Analyze Lateral Void Gaps (AAR 6.1)
+        # Identify gaps between loads and car walls
+        suggestions.extend(self._analyze_lateral_gaps(placements, vehicle))
+        
+        # 3. Analyze Incomplete Layers (AAR 6.3)
+        # If a layer doesn't fill the width, suggest side blocking
+        suggestions.extend(self._analyze_layer_blocking(placements, vehicle))
+        
+        # 4. Hazmat specific securements (AAR 7.x)
+        suggestions.extend(self._analyze_hazmat_securement(placements, loads_dict))
+        
+        # 5. Fragile load padding (AAR 6.6)
+        suggestions.extend(self._analyze_fragile_padding(placements, loads_dict))
+        
+        return suggestions
 
-        # Rule 6.1-6.2: Airbag sizing
-        securements.extend(self._suggest_airbags(placements, load_map, vehicle))
-
-        # Rule 7.3-7.4: Doorway straps
-        securements.extend(self._suggest_doorway_straps(placements, load_map, vehicle))
-
-        # Rule 5.7: Risers for incomplete layers
-        securements.extend(self._suggest_risers(placements, load_map, vehicle))
-
-        # Rule 5.5: Rubber mat placement
-        securements.extend(self._suggest_rubber_mats(placements, load_map, vehicle))
-
-        return securements
-
-    def _suggest_airbags(self, placements: List[LoadPlacement],
-                        load_map: Dict, vehicle: VehicleSpec) -> List[Dict]:
-        """Suggest airbags per rule 5.4.1 and 6.1-6.2."""
-        airbags = []
-
-        # Rule 5.4.1: Airbag levels by weight
-        def get_airbag_level(weight_kg: float) -> int:
-            if weight_kg <= 75000:
-                return 2  # Level 2: ≤75k lb
-            elif weight_kg <= 160000:
-                return 3  # Level 3: ≤160k lb
-            elif weight_kg <= 216000:
-                return 4  # Level 4: ≤216k lb (horizontal ≤190k)
-            else:
-                return 5  # Level 5: ≤216k lb
-
-        for placement in placements:
-            load = load_map.get(placement.load_id)
-            if not load:
-                continue
-
-            level = get_airbag_level(load.weight_kg)
-
-            # Rule 6.1: Vertical airbags for lateral voids
-            # Suggest if gap between load and wall > 0.3m
-            if placement.z > 0.5:  # Gap from left wall
-                airbags.append({
-                    "type": f"airbag_level_{level}",
-                    "variant": "vertical",
-                    "position": [
-                        placement.x + placement.placed_w / 2,
-                        placement.y + placement.placed_h / 2,
-                        placement.z - 0.2
-                    ],
-                    "load_id": placement.load_id,
-                    "min_width_m": max(placement.placed_w - 0.25, 0.3),
-                    "reason": f"Fill void beside load (level {level})"
-                })
-
-            # Rule 6.2: Horizontal airbags for lengthwise voids
-            if placement.x > 0.5:
-                airbags.append({
-                    "type": f"airbag_level_{level}",
-                    "variant": "horizontal",
-                    "position": [
-                        placement.x - 0.2,
-                        placement.y + placement.placed_h / 2,
-                        placement.z + placement.placed_d / 2
-                    ],
-                    "load_id": placement.load_id,
-                    "min_width_m": 0.36,
-                    "min_height_m": max(placement.placed_h * 0.67, 0.5),
-                    "reason": f"Fill void in front of load (level {level})"
-                })
-
-        return airbags
-
-    def _suggest_doorway_straps(self, placements: List[LoadPlacement],
-                               load_map: Dict, vehicle: VehicleSpec) -> List[Dict]:
-        """Suggest straps per rule 7.3-7.4."""
-        straps = []
-        doorway_zone_start = vehicle.length_m * 0.8
-
-        for placement in placements:
-            # Rule 7.1: Doorway protection required if load extends into doorway
-            if placement.x + placement.placed_w > doorway_zone_start:
-                load = load_map.get(placement.load_id)
-                if not load:
-                    continue
-
-                # Rule 7.3.2-7.3.3: Steel strap count by width
-                strap_count = 1 if placement.placed_w < 0.635 else 2  # 25 inches
-                strap_type = "steel_strap"
-
-                straps.append({
-                    "type": strap_type,
-                    "count": strap_count,
-                    "per_layer": True,
-                    "position": [placement.x + placement.placed_w / 2, placement.y, placement.z],
-                    "load_id": placement.load_id,
-                    "reason": f"Doorway protection ({strap_count} strap{'s' if strap_count > 1 else ''})"
-                })
-
-        return straps
-
-    def _suggest_risers(self, placements: List[LoadPlacement],
-                       load_map: Dict, vehicle: VehicleSpec) -> List[Dict]:
-        """Suggest risers per rule 5.7."""
-        risers = []
-
-        # Detect incomplete layers (where some positions are empty)
-        by_layer = {}
+    def _analyze_longitudinal_gaps(self, placements: List[LoadPlacement], 
+                                   vehicle: VehicleSpec) -> List[SecurementSuggestion]:
+        """
+        Detect gaps along the X-axis (length) between loads.
+        If gap > 30cm, suggest airbags.
+        """
+        suggestions = []
+        
+        # Group loads by layer (y) and lane (z)
+        # This is a simplified approximation
         for p in placements:
-            layer = int(p.y / max(p.placed_h, 0.1))
-            if layer not in by_layer:
-                by_layer[layer] = []
-            by_layer[layer].append(p)
+            # Check for loads "behind" this one in the same lane
+            for other in placements:
+                if p.load_id == other.load_id: continue
+                
+                # Same lane (approx)
+                if abs(p.z - other.z) < 0.1 and abs(p.y - other.y) < 0.1:
+                    # If other is in front of p
+                    gap = other.x - (p.x + p.placed_d)
+                    if 0.3 < gap < 2.0:  # Gap between 30cm and 2m
+                        suggestions.append(SecurementSuggestion(
+                            type="airbag",
+                            location=((p.x + p.placed_d + gap/2), p.y, p.z),
+                            quantity=1,
+                            reason="AAR 6.1: Longitudinal void gap > 30cm. Airbag required to prevent shifting.",
+                            severity="critical"
+                        ))
+        
+        return suggestions
 
-        for layer_idx, layer_placements in by_layer.items():
-            if layer_idx == 0:
-                continue  # Skip floor layer
+    def _analyze_lateral_gaps(self, placements: List[LoadPlacement], 
+                               vehicle: VehicleSpec) -> List[SecurementSuggestion]:
+        """
+        Detect gaps between loads and car walls (Z-axis).
+        """
+        suggestions = []
+        
+        for p in placements:
+            # Left gap
+            left_gap = p.z
+            if 0.3 < left_gap < 1.0:
+                suggestions.append(SecurementSuggestion(
+                    type="airbag",
+                    location=(p.x + p.placed_d/2, p.y, left_gap/2),
+                    quantity=1,
+                    reason="AAR 6.1: Lateral void gap on left. Airbag recommended.",
+                    severity="recommended"
+                ))
+            
+            # Right gap
+            right_gap = vehicle.width_m - (p.z + p.placed_w)
+            if 0.3 < right_gap < 1.0:
+                suggestions.append(SecurementSuggestion(
+                    type="airbag",
+                    location=(p.x + p.placed_d/2, p.y, p.z + p.placed_w + right_gap/2),
+                    quantity=1,
+                    reason="AAR 6.1: Lateral void gap on right. Airbag recommended.",
+                    severity="recommended"
+                ))
+                
+        return suggestions
 
-            # Rule 5.7: If layer is incomplete, suggest risers for next layer
-            total_positions_possible = int(vehicle.length_m / max(p.placed_w for p in layer_placements))
-            if len(layer_placements) < total_positions_possible * 0.8:  # <80% full
-                for placement in layer_placements:
-                    load = load_map.get(placement.load_id)
-                    if not load:
-                        continue
+    def _analyze_layer_blocking(self, placements: List[LoadPlacement], 
+                               vehicle: VehicleSpec) -> List[SecurementSuggestion]:
+        """
+        Identify incomplete layers (AAR 6.3) and suggest blocking.
+        """
+        suggestions = []
+        
+        layers = {}
+        for p in placements:
+            layer_key = round(p.y, 2)
+            if layer_key not in layers:
+                layers[layer_key] = []
+            layers[layer_key].append(p)
+            
+        for layer_y, layer_items in layers.items():
+            min_z = min(p.z for p in layer_items)
+            max_z = max((p.z + p.placed_w) for p in layer_items)
+            coverage = max_z - min_z
+            
+            if coverage < vehicle.width_m * 0.95:
+                # Suggest blocking on the sides of the layer
+                suggestions.append(SecurementSuggestion(
+                    type="block",
+                    location=(vehicle.length_m/2, layer_y, min_z/2 if min_z > 0 else 0),
+                    quantity=2,
+                    reason="AAR 6.3: Incomplete layer. Side blocking required to prevent transverse movement.",
+                    severity="critical"
+                ))
+                
+        return suggestions
 
-                    # Rule 5.7.7: Riser crush strength
-                    crush_strength = 9000 if len(layer_placements) < 3 else 6000
+    def _analyze_hazmat_securement(self, placements: List[LoadPlacement], 
+                                   loads_dict: dict[int, LoadSpec]) -> List[SecurementSuggestion]:
+        """
+        Suggest specific securements for hazardous materials.
+        """
+        suggestions = []
+        
+        for p in placements:
+            load = loads_dict.get(p.load_id)
+            if load and load.hazmat_class:
+                # All hazmat loads must be secured with straps
+                suggestions.append(SecurementSuggestion(
+                    type="strap",
+                    location=(p.x + p.placed_d/2, p.y + p.placed_h, p.z + p.placed_w/2),
+                    quantity=2,
+                    reason=f"AAR 7.x: Hazmat Class {load.hazmat_class} requires dedicated tie-down straps.",
+                    severity="critical"
+                ))
+                
+        return suggestions
 
-                    risers.append({
-                        "type": "riser",
-                        "crush_strength_psf": crush_strength,
-                        "position": [placement.x, placement.y, placement.z],
-                        "load_id": placement.load_id,
-                        "reason": f"Support incomplete layer {layer_idx} (crush ≥{crush_strength} psf)"
-                    })
-
-        return risers
-
-    def _suggest_rubber_mats(self, placements: List[LoadPlacement],
-                            load_map: Dict, vehicle: VehicleSpec) -> List[Dict]:
-        """Suggest rubber mats per rule 5.5."""
-        mats = []
-
-        # Rule 5.5.3: Rubber mats under doorway rolls
-        doorway_zone_start = vehicle.length_m * 0.8
-        for placement in placements:
-            if placement.x + placement.placed_w > doorway_zone_start and placement.y < 0.1:
-                mats.append({
-                    "type": "rubber_mat",
-                    "thickness_mm": 2,
-                    "coverage_pct": 50,  # Rule 5.5.2: ≥50%
-                    "position": [placement.x, 0, placement.z],
-                    "load_id": placement.load_id,
-                    "reason": "Doorway floor protection (≥2mm thick)"
-                })
-                # Rule 5.5.4: Don't reuse mats (noted in description)
-
-        return mats
+    def _analyze_fragile_padding(self, placements: List[LoadPlacement], 
+                                 loads_dict: dict[int, LoadSpec]) -> List[SecurementSuggestion]:
+        """
+        Suggest padding for fragile items.
+        """
+        suggestions = []
+        
+        for p in placements:
+            load = loads_dict.get(p.load_id)
+            if load and load.fragile:
+                suggestions.append(SecurementSuggestion(
+                    type="mat",
+                    location=(p.x + p.placed_d/2, p.y, p.z + p.placed_w/2),
+                    quantity=1,
+                    reason="AAR 6.6: Fragile load detected. Rubber mat/padding recommended for base.",
+                    severity="recommended"
+                ))
+                
+        return suggestions
 
 
+# Module-level function for compatibility with engine_v2
 def suggest_securements(placements: List[LoadPlacement],
-                       load_specs: List[LoadSpec],
-                       vehicle: VehicleSpec) -> List[Dict]:
-    """Wrapper function."""
-    suggester = SecurementSuggester()
-    return suggester.suggest_securements(placements, load_specs, vehicle)
+                       loads: List[LoadSpec],
+                       vehicle: VehicleSpec) -> List[SecurementSuggestion]:
+    """
+    Convenience function to suggest securements for a set of placements.
+    """
+    engine = SecurementEngine()
+    loads_dict = {l.id: l for l in loads}
+    return engine.suggest_securements(placements, loads_dict, vehicle)

@@ -3,75 +3,81 @@ from pydantic import BaseModel, Field, model_validator
 
 class LoadBaseRequest(BaseModel):
     type: str
-    shape: str | None = None
-    load_type: str | None = None
     dimensions: dict
     weight: float = Field(gt=0)
-    quantity: int = Field(default=1, ge=1)
-    cg_x: float | None = None
-    cg_y: float | None = None
-    cg_z: float | None = None
+    quantity: int = Field(default=1, ge=1, le=1000)
     fragile: bool = False
     stackable: bool = True
     hazmat_class: str | None = None
     diameter: float | None = None
-    material_type: str | None = None
-    texture_url: str | None = None
-    model_url: str | None = None
-    orientation: dict | None = None
 
     @model_validator(mode="after")
     def validate_dimensions(self):
         dims = self.dimensions or {}
-        shape = (self.shape or self.type or "cuboid").lower()
-        if shape in ("cube", "cuboid"):
+        shape = (self.type or "cube").lower()
+        
+        # Validate dimensions exist and are positive
+        if shape in ("cube", "cuboid", "pallet"):
             for key in ("length", "width", "height"):
                 value = dims.get(key)
-                if value is None or float(value) <= 0:
-                    raise ValueError(f"Invalid dimensions: {key} must be > 0")
-        elif shape in ("cylinder", "paper_roll", "coil"):
-            radius = dims.get("radius")
-            height = dims.get("height")
-            length = dims.get("length", height)
-            if length is None or float(length) <= 0:
-                raise ValueError("Invalid dimensions: height/length must be > 0 for cylinder-like loads")
-            diameter = self.diameter if self.diameter is not None else dims.get("diameter")
-            if diameter is None and radius is not None:
-                diameter = float(radius) * 2.0
-            if diameter is None or float(diameter) <= 0:
-                raise ValueError("Invalid dimensions: radius or diameter must be > 0 for cylinder-like loads")
-            dims["length"] = float(length)
-            dims["height"] = float(length)
-            dims["width"] = float(diameter)
-            dims["radius"] = float(diameter) / 2.0
-            dims["diameter"] = float(diameter)
-            self.dimensions = dims
-            self.diameter = float(diameter)
-        elif shape == "irregular":
-            for key in ("length", "width", "height"):
-                value = dims.get(key)
-                if value is None or float(value) <= 0:
-                    raise ValueError(f"Invalid irregular bounds: {key} must be > 0")
+                if value is None:
+                    raise ValueError(f"Missing dimension: {key}")
+                try:
+                    fval = float(value)
+                    if fval <= 0.01 or fval > 10:
+                        raise ValueError(f"Invalid {key}: must be between 0.01m and 10m")
+                    dims[key] = fval
+                except (ValueError, TypeError):
+                    raise ValueError(f"Invalid {key}: must be a positive number")
+        
+        elif shape in ("cylinder", "paper_roll", "roll", "coil"):
+            # For cylinders: diameter and height/length required
+            length = dims.get("length") or dims.get("height")
+            if length is None:
+                raise ValueError("Missing dimension: length/height required for cylindrical loads")
+            
+            try:
+                length_val = float(length)
+                if length_val <= 0.01 or length_val > 10:
+                    raise ValueError("Invalid length: must be between 0.01m and 10m")
+                dims["length"] = length_val
+                dims["height"] = length_val
+            except (ValueError, TypeError):
+                raise ValueError("Invalid length: must be a positive number")
+            
+            # Diameter from self.diameter or dimensions
+            diameter = self.diameter or dims.get("diameter")
+            if diameter is None:
+                raise ValueError("Missing dimension: diameter required for cylindrical loads")
+            
+            try:
+                diam_val = float(diameter)
+                if diam_val <= 0.01 or diam_val > 10:
+                    raise ValueError("Invalid diameter: must be between 0.01m and 10m")
+                dims["diameter"] = diam_val
+                dims["width"] = diam_val
+                self.diameter = diam_val
+            except (ValueError, TypeError):
+                raise ValueError("Invalid diameter: must be a positive number")
+        
         else:
-            raise ValueError(f"Unsupported load type: {shape}")
-
-        dims["shape"] = shape
-        if self.load_type:
-            dims["load_type"] = self.load_type
-        if self.material_type:
-            dims["material_type"] = self.material_type
-        if self.texture_url:
-            dims["texture_url"] = self.texture_url
-        if self.model_url:
-            dims["model_url"] = self.model_url
-        if self.orientation:
-            dims["orientation"] = self.orientation
+            raise ValueError(f"Unsupported load type: {shape}. Must be: cube, cylinder, roll, pallet, or coil")
+        
+        # Validate weight
+        try:
+            weight_val = float(self.weight)
+            if weight_val < 1 or weight_val > 100000:
+                raise ValueError("Weight must be between 1kg and 100,000kg")
+        except (ValueError, TypeError):
+            raise ValueError("Invalid weight: must be a positive number")
+        
+        # Validate hazmat class if provided
+        if self.hazmat_class:
+            valid_classes = ("1", "2", "3", "4", "5", "6", "7", "8", "9")
+            if self.hazmat_class not in valid_classes:
+                raise ValueError(f"Invalid hazmat_class: must be one of {valid_classes}")
+        
         self.dimensions = dims
-
-        if self.hazmat_class and self.hazmat_class not in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
-            raise ValueError("hazmat_class must be 1-9")
-        if self.diameter is not None and self.diameter <= 0:
-            raise ValueError("diameter must be > 0")
         return self
 
 

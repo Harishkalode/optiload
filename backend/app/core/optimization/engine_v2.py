@@ -34,11 +34,12 @@ class PlacementEngine:
         """Detect and fix unit mismatches (mm/cm/km)."""
         v_len, v_wid, v_ht = vehicle.length_m, vehicle.width_m, vehicle.height_m
         
-        if v_len > 1000 or v_wid > 1000 or v_ht > 1000:  # mm
+        # Check if all dimensions suggest the same unit
+        if v_len > 1000 and v_wid > 1000 and v_ht > 1000:  # all in mm
             v_len, v_wid, v_ht = v_len / 1000, v_wid / 1000, v_ht / 1000
-        elif v_len > 100 or v_wid > 100 or v_ht > 100:  # cm
+        elif v_len > 100 and v_wid > 100 and v_ht > 100:  # all in cm
             v_len, v_wid, v_ht = v_len / 100, v_wid / 100, v_ht / 100
-        elif v_len < 0.1:  # km
+        elif v_len < 0.1 and v_wid < 0.1 and v_ht < 0.1:  # all in km
             v_len, v_wid, v_ht = v_len * 1000, v_wid * 1000, v_ht * 1000
         
         return VehicleSpec(
@@ -147,7 +148,7 @@ class PlacementEngine:
                         candidate = LoadPlacement(
                             load_id=load.id,
                             x=round(x, 3), y=round(y, 3), z=round(z, 3),
-                            rx=0, ry=0, rz=0, rotated=False,
+                            orientation="vertical",  # Simplified: no rotations
                             placed_w=w, placed_h=h, placed_d=d,
                             cog_x=x + w / 2, cog_y=y + h / 2, cog_z=z + d / 2,
                             contact_type="floor" if y < self.eps else "load",
@@ -235,6 +236,27 @@ def run_optimization(vehicle: VehicleSpec, loads: List[LoadSpec], constraints: O
     """
     # Phase 1: Normalization
     vehicle = PlacementEngine().normalize_dimensions(vehicle)
+    # Normalize load dimensions if they are in cm or mm
+    normalized_loads = []
+    for load in loads:
+        l_len, l_wid, l_ht = load.length_m, load.width_m, load.height_m
+        if l_len >= 1000 and l_wid >= 1000 and l_ht >= 1000:  # all in mm
+            l_len, l_wid, l_ht = l_len / 1000, l_wid / 1000, l_ht / 1000
+            diameter = load.diameter_m / 1000 if load.diameter_m is not None else None
+        elif l_len >= 100 and l_wid >= 100 and l_ht >= 100:  # all in cm
+            l_len, l_wid, l_ht = l_len / 100, l_wid / 100, l_ht / 100
+            diameter = load.diameter_m / 100 if load.diameter_m is not None else None
+        elif l_len <= 0.001 and l_wid <= 0.001 and l_ht <= 0.001:  # all in km
+            l_len, l_wid, l_ht = l_len * 1000, l_wid * 1000, l_ht * 1000
+            diameter = load.diameter_m * 1000 if load.diameter_m is not None else None
+        else:
+            diameter = load.diameter_m
+        normalized_loads.append(LoadSpec(
+            id=load.id, type=load.type, length_m=l_len, width_m=l_wid, height_m=l_ht,
+            weight_kg=load.weight_kg, quantity=load.quantity, fragile=load.fragile,
+            stackable=load.stackable, hazmat_class=load.hazmat_class, diameter_m=diameter
+        ))
+    loads = normalized_loads
     
     # Phase 2: Deterministic placement with physics
     engine = PlacementEngine()
@@ -242,8 +264,10 @@ def run_optimization(vehicle: VehicleSpec, loads: List[LoadSpec], constraints: O
     
     # Phase 3: Physics analysis
     physics = PhysicsEngine()
-    cog = physics.compute_combined_cog(vehicle, placements, loads)
-    axle_loads, axles = physics.compute_axle_loads(vehicle, placements, loads)
+    loads_dict = {l.id: l for l in loads}
+    load_weights = {l.id: l.weight_kg for l in loads}
+    cog = physics.compute_combined_cog(vehicle, placements, loads_dict)
+    axle_loads, axles = physics.compute_axle_loads(vehicle, placements, loads_dict)
     
     # Phase 4: Comprehensive validation
     violations = list(placement_violations)
@@ -255,16 +279,16 @@ def run_optimization(vehicle: VehicleSpec, loads: List[LoadSpec], constraints: O
         violations.append(cog_violation)
     
     # AAR 3.2.2: Axle loads
-    axle_violations = physics.validate_axle_loads(axles)
+    axle_violations = physics.validate_axle_loads(vehicle, placements, load_weights)
     violations.extend(axle_violations)
     
     # AAR 3.3: Lateral balance
-    lat_violations = physics.validate_lateral_balance(vehicle, placements, loads)
+    lat_violations = physics.validate_lateral_balance(vehicle, placements, load_weights)
     violations.extend([v for v in lat_violations if v.severity == "error"])
     warnings.extend([v for v in lat_violations if v.severity == "warning"])
     
     # AAR Longitudinal balance
-    long_violations = physics.validate_longitudinal_balance(vehicle, placements, loads)
+    long_violations = physics.validate_longitudinal_balance(vehicle, placements, load_weights)
     violations.extend([v for v in long_violations if v.severity == "error"])
     warnings.extend([v for v in long_violations if v.severity == "warning"])
     

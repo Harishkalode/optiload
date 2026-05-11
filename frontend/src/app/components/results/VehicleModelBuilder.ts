@@ -170,7 +170,7 @@ function createHandrails(length: number, platH: number, wallH: number, side: 'le
  */
 export function createFlatcarModel(carL: number, carW: number, platH: number): THREE.Group {
   const group = new THREE.Group();
-
+  
   // ── Underframe ──
   // Center sill (main longitudinal beam)
   const sillGeo = new THREE.BoxGeometry(carL, 0.3, 0.2);
@@ -178,7 +178,7 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
   sill.position.set(carL / 2, platH - 0.35, 0);
   sill.castShadow = true;
   group.add(sill);
-
+  
   // Side sills
   const sideSillGeo = new THREE.BoxGeometry(carL, 0.2, 0.15);
   [-1, 1].forEach(side => {
@@ -187,7 +187,7 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
     sideSill.castShadow = true;
     group.add(sideSill);
   });
-
+  
   // Cross-bearers
   const crossGeo = new THREE.BoxGeometry(0.12, 0.15, carW - 0.3);
   for (let i = 0; i < Math.floor(carL / 1.5); i++) {
@@ -196,20 +196,20 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
     cross.castShadow = true;
     group.add(cross);
   }
-
+  
   // ── Deck planks ──
   const plankW = 0.15;
   const plankH = 0.08;
   const plankMat = woodMaterial();
   for (let z = -carW / 2 + plankW / 2; z < carW / 2; z += plankW) {
-    const plankGeo = new THREE.BoxGeometry(carL - 0.1, plankH, plankW - 0.01);
+    const plankGeo = new THREE.BoxGeometry(carL, plankH, plankW - 0.01);
     const plank = new THREE.Mesh(plankGeo, plankMat);
     plank.position.set(carL / 2, platH + plankH / 2, z);
     plank.receiveShadow = true;
     plank.castShadow = true;
     group.add(plank);
   }
-
+  
   // ── Stake pockets ──
   const pocketGeo = new THREE.BoxGeometry(0.1, 0.15, 0.1);
   const pocketMat = darkSteelMaterial();
@@ -220,7 +220,7 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
       group.add(pocket);
     });
   }
-
+  
   // ── End platforms with handrails ──
   [-1, 1].forEach(end => {
     const x = end > 0 ? carL - 0.3 : 0.3;
@@ -230,7 +230,7 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
     plat.position.set(x, platH + 0.03, 0);
     plat.receiveShadow = true;
     group.add(plat);
-
+    
     // Handrail posts
     const postGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.0, 8);
     const postMat = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.4, metalness: 0.8 });
@@ -240,26 +240,26 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
       group.add(post);
     });
   });
-
+  
   // ── Bogies ──
   const bogie1 = createBogie();
   bogie1.position.set(carL * 0.15, 0, 0);
   group.add(bogie1);
-
+  
   const bogie2 = createBogie();
   bogie2.position.set(carL * 0.85, 0, 0);
   group.add(bogie2);
-
+  
   // ── Couplers ──
   const couplerFront = createCoupler();
   couplerFront.position.set(carL, platH - 0.55, 0);
   group.add(couplerFront);
-
+  
   const couplerRear = createCoupler();
   couplerRear.rotation.y = Math.PI;
   couplerRear.position.set(0, platH - 0.55, 0);
   group.add(couplerRear);
-
+  
   return group;
 }
 
@@ -280,17 +280,17 @@ export function createBoxcarModel(carL: number, carW: number, carH: number, plat
   const wallMat = steelMaterial(isDark ? '#3d4a5c' : '#5a6577');
   const roofMat = steelMaterial(isDark ? '#2d3748' : '#4a5568');
   const floorMat = woodMaterial();
-
+  
   // ── Floor ──
-  const floorGeo = new THREE.BoxGeometry(carL - 0.2, 0.1, carW - 0.2);
+  const floorGeo = new THREE.BoxGeometry(carL, 0.1, carW);
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.position.set(carL / 2, platH + 0.05, 0);
   floor.receiveShadow = true;
   group.add(floor);
-
+  
   // ── Side walls ──
-  const sideWallGeo = new THREE.BoxGeometry(carL - 0.2, wallH, 0.08);
-
+  const sideWallGeo = new THREE.BoxGeometry(carL, wallH, 0.08);
+  
   // Left wall (with door opening)
   const leftWallGroup = new THREE.Group();
   // Wall sections around door
@@ -307,7 +307,7 @@ export function createBoxcarModel(carL: number, carW: number, carH: number, plat
   }
   // Rear section (after door)
   const rearStart = doorX + doorW;
-  const rearLen = carL - 0.2 - rearStart;
+  const rearLen = carL - rearStart;
   if (rearLen > 0.1) {
     const rearGeo = new THREE.BoxGeometry(rearLen, wallH, 0.08);
     const rearWall = new THREE.Mesh(rearGeo, wallMat);
@@ -323,32 +323,32 @@ export function createBoxcarModel(carL: number, carW: number, carH: number, plat
   topWall.position.set(doorX + doorW / 2, platH + doorH + (wallH - doorH) / 2, carW / 2);
   topWall.castShadow = true;
   leftWallGroup.add(topWall);
-
+  
   group.add(leftWallGroup);
-
+  
   // Right wall (solid)
   const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
   rightWall.position.set(carL / 2, platH + wallH / 2, -carW / 2);
   rightWall.castShadow = true;
   rightWall.receiveShadow = true;
   group.add(rightWall);
-
+  
   // ── End walls ──
-  const endWallGeo = new THREE.BoxGeometry(0.08, wallH, carW - 0.2);
+  const endWallGeo = new THREE.BoxGeometry(0.08, wallH, carW);
   const frontWall = new THREE.Mesh(endWallGeo, wallMat);
-  frontWall.position.set(carL - 0.1, platH + wallH / 2, 0);
+  frontWall.position.set(carL, platH + wallH / 2, 0);
   frontWall.castShadow = true;
   frontWall.receiveShadow = true;
   group.add(frontWall);
-
+  
   const backWall = new THREE.Mesh(endWallGeo, wallMat);
-  backWall.position.set(0.1, platH + wallH / 2, 0);
+  backWall.position.set(0, platH + wallH / 2, 0);
   backWall.castShadow = true;
   backWall.receiveShadow = true;
   group.add(backWall);
-
+  
   // ── Roof ──
-  const roofGeo = new THREE.BoxGeometry(carL - 0.1, 0.06, carW - 0.1);
+  const roofGeo = new THREE.BoxGeometry(carL, 0.06, carW);
   const roof = new THREE.Mesh(roofGeo, roofMat);
   roof.position.set(carL / 2, platH + wallH, 0);
   roof.castShadow = true;
@@ -458,16 +458,16 @@ export function createGondolaModel(carL: number, carW: number, carH: number, pla
   const group = new THREE.Group();
   const wallH = Math.min(carH - platH, 2.0);
   const wallMat = steelMaterial(isDark ? '#3d4a5c' : '#5a6577');
-
+  
   // ── Floor ──
-  const floorGeo = new THREE.BoxGeometry(carL - 0.2, 0.08, carW - 0.2);
+  const floorGeo = new THREE.BoxGeometry(carL, 0.08, carW);
   const floor = new THREE.Mesh(floorGeo, darkSteelMaterial());
   floor.position.set(carL / 2, platH + 0.04, 0);
   floor.receiveShadow = true;
   group.add(floor);
-
+  
   // ── Side walls ──
-  const sideGeo = new THREE.BoxGeometry(carL - 0.2, wallH, 0.06);
+  const sideGeo = new THREE.BoxGeometry(carL, wallH, 0.06);
   [-1, 1].forEach(side => {
     const wall = new THREE.Mesh(sideGeo, wallMat);
     wall.position.set(carL / 2, platH + wallH / 2, side * (carW / 2 - 0.03));
@@ -475,56 +475,56 @@ export function createGondolaModel(carL: number, carW: number, carH: number, pla
     wall.receiveShadow = true;
     group.add(wall);
   });
-
+  
   // ── End walls ──
-  const endGeo = new THREE.BoxGeometry(0.06, wallH, carW - 0.2);
-  [0.1, carL - 0.1].forEach(x => {
+  const endGeo = new THREE.BoxGeometry(0.06, wallH, carW);
+  [0, carL].forEach(x => {
     const wall = new THREE.Mesh(endGeo, wallMat);
     wall.position.set(x, platH + wallH / 2, 0);
     wall.castShadow = true;
     wall.receiveShadow = true;
     group.add(wall);
   });
-
+  
   // ── Vertical ribs ──
   const ribGeo = new THREE.BoxGeometry(0.03, wallH, 0.03);
   const ribMat = darkSteelMaterial();
   for (let i = 1; i < 10; i++) {
-    const x = (i / 10) * (carL - 0.2);
+    const x = (i / 10) * carL;
     [-1, 1].forEach(side => {
       const rib = new THREE.Mesh(ribGeo, ribMat);
       rib.position.set(x, platH + wallH / 2, side * (carW / 2 - 0.06));
       group.add(rib);
     });
   }
-
+  
   // ── Top rail along walls ──
-  const topRailGeo = new THREE.BoxGeometry(carL - 0.2, 0.06, 0.06);
+  const topRailGeo = new THREE.BoxGeometry(carL, 0.06, 0.06);
   [-1, 1].forEach(side => {
     const rail = new THREE.Mesh(topRailGeo, darkSteelMaterial());
     rail.position.set(carL / 2, platH + wallH, side * (carW / 2 - 0.03));
     group.add(rail);
   });
-
+  
   // ── Bogies ──
   const bogie1 = createBogie();
   bogie1.position.set(carL * 0.15, 0, 0);
   group.add(bogie1);
-
+  
   const bogie2 = createBogie();
   bogie2.position.set(carL * 0.85, 0, 0);
   group.add(bogie2);
-
+  
   // ── Couplers ──
   const couplerFront = createCoupler();
   couplerFront.position.set(carL, platH - 0.55, 0);
   group.add(couplerFront);
-
+  
   const couplerRear = createCoupler();
   couplerRear.rotation.y = Math.PI;
   couplerRear.position.set(0, platH - 0.55, 0);
   group.add(couplerRear);
-
+  
   return group;
 }
 

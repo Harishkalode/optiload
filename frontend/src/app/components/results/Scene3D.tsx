@@ -14,12 +14,13 @@ export interface Load3D {
   fragile: boolean; priority: number; customer: string;
   compatScore: number; stackGroup: string; rotationAllowed: boolean;
   x: number; y: number; z: number; w: number; h: number; d: number;
+  rotationY?: number;
   shape?: string;
   loadType?: string;
   materialType?: string;
   textureUrl?: string;
   modelUrl?: string;
-  orientation?: { x?: number; y?: number; z?: number };
+  orientation?: 'vertical' | 'horizontal';
   color: string; hasViolation?: boolean;
 }
 
@@ -484,34 +485,35 @@ export function Scene3D({
         newZ = Math.round(newZ / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
         const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-        if (stackMembers && stackOffsets) {
-          const bounds = stackOffsets.map(({ group, dx, dz }) => {
-            const gw = group.userData.loadW || 1;
-            const gd = group.userData.loadD || 1;
-            return {
-              minX: gw / 2 - dx,
-              maxX: carL - gw / 2 - dx,
-              minZ: gd / 2 - dz,
-              maxZ: carW - gd / 2 - dz,
-            };
-          });
-          const allowedMinX = Math.max(...bounds.map(b => b.minX));
-          const allowedMaxX = Math.min(...bounds.map(b => b.maxX));
-          const allowedMinZ = Math.max(...bounds.map(b => b.minZ));
-          const allowedMaxZ = Math.min(...bounds.map(b => b.maxZ));
-          newX = clamp(newX, allowedMinX, allowedMaxX);
-          newZ = clamp(newZ, allowedMinZ, allowedMaxZ);
+         if (stackMembers && stackOffsets) {
+           const bounds = stackOffsets.map(({ group, dx, dz }) => {
+             const gw = group.userData.loadW || 1;
+             const gd = group.userData.loadD || 1;
+             return {
+               minX: gw / 2 - dx,
+               maxX: carL - gw / 2 - dx,
+               minZ: -carW / 2 + gd / 2 - dz,
+               maxZ: -carW / 2 + carW - gd / 2 - dz,
+             };
+           });
+           const allowedMinX = Math.max(...bounds.map(b => b.minX));
+           const allowedMaxX = Math.min(...bounds.map(b => b.maxX));
+           const allowedMinZ = Math.max(...bounds.map(b => b.minZ));
+           const allowedMaxZ = Math.min(...bounds.map(b => b.maxZ));
+           newX = clamp(newX, allowedMinX, allowedMaxX);
+           newZ = clamp(newZ, allowedMinZ, allowedMaxZ);
+
 
           stackOffsets.forEach(({ group, dx, dz }) => {
             group.position.set(newX + dx, group.position.y, newZ + dz);
           });
-        } else {
-          const leadW = leadLoad.userData.loadW || 1;
-          const leadD = leadLoad.userData.loadD || 1;
-          newX = clamp(newX, leadW / 2, carL - leadW / 2);
-          newZ = clamp(newZ, leadD / 2, carW - leadD / 2);
-          leadLoad.position.set(newX, leadLoad.position.y, newZ);
-        }
+         } else {
+           const leadW = leadLoad.userData.loadW || 1;
+           const leadD = leadLoad.userData.loadD || 1;
+           newX = clamp(newX, leadW / 2, carL - leadW / 2);
+           newZ = clamp(newZ, -carW / 2 + leadD / 2, carW / 2 - leadD / 2);
+           leadLoad.position.set(newX, leadLoad.position.y, newZ);
+         }
 
         if (onValidateDrag) {
           const validation = onValidateDrag(draggedLoadIdRef.current, newX, newZ);
@@ -521,26 +523,26 @@ export function Scene3D({
     };
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
 
-    const handleMouseUp = () => {
-      if (!isDraggingRef.current || !draggedLoadIdRef.current) return;
-
-      const load = loadMeshesRef.current.get(draggedLoadIdRef.current);
-      if (load) {
-        // Convert center coords → corner coords for the data model
-        const loadW = load.userData.loadW || 1;
-        const loadD = load.userData.loadD || 1;
-        const cornerX = load.position.x - loadW / 2;
-        const cornerZ = load.position.z - loadD / 2;
-        onMoveLoad(draggedLoadIdRef.current, cornerX, cornerZ);
-      }
-
-      isDraggingRef.current = false;
-      draggedLoadIdRef.current = null;
-      setIsDragging(false);
-      setDraggedLoadId(null);
-      setDragValidation(null);
-      controlsRef.current!.enabled = true;
-    };
+     const handleMouseUp = () => {
+       if (!isDraggingRef.current || !draggedLoadIdRef.current) return;
+       
+       const load = loadMeshesRef.current.get(draggedLoadIdRef.current);
+       if (load) {
+         // Convert center coords → corner coords for the data model
+         const loadW = load.userData.loadW || 1;
+         const loadD = load.userData.loadD || 1;
+         const cornerX = load.position.x - loadW / 2;
+         const cornerZ = load.position.z - loadD / 2 + carW / 2;
+         onMoveLoad(draggedLoadIdRef.current, cornerX, cornerZ);
+       }
+       
+       isDraggingRef.current = false;
+       draggedLoadIdRef.current = null;
+       setIsDragging(false);
+       setDraggedLoadId(null);
+       setDragValidation(null);
+       controlsRef.current!.enabled = true;
+     };
     renderer.domElement.addEventListener('mouseup', handleMouseUp);
 
     setIsInitialized(true);
@@ -591,87 +593,89 @@ export function Scene3D({
       // Add new load meshes using realistic product models
       for (const load of loads) {
         if (cancelled) break;
-      // Determine load type from name and create realistic model
-      let loadType = load.loadType || load.shape || 'box';
-      const nameLower = load.name.toLowerCase();
-      if (!load.shape) {
-        if (nameLower.includes('paper') || nameLower.includes('roll')) loadType = 'paper_roll';
-        else if (nameLower.includes('pallet')) loadType = 'pallet';
-        else if (nameLower.includes('coil')) loadType = 'coil';
-        else if (nameLower.includes('carton') || nameLower.includes('box')) loadType = 'carton';
-        else if (nameLower.includes('drum') || nameLower.includes('barrel')) loadType = 'drum';
-        else if (nameLower.includes('bag') || nameLower.includes('sack')) loadType = 'bag';
-        else if (nameLower.includes('pipe') || nameLower.includes('tube')) loadType = 'pipe';
-        else if (nameLower.includes('lumber') || nameLower.includes('wood')) loadType = 'lumber';
-        else if (nameLower.includes('crate')) loadType = 'carton';
-      }
-
-      const loadGroup = await createLoadModelAsync(loadType, load.w, load.h, load.d, load.color, {
-        materialType: load.materialType,
-        textureUrl: load.textureUrl,
-        modelUrl: load.modelUrl,
-        orientation: load.orientation,
-      });
-      if (cancelled) break;
-
-      // Position the load group (corner coords → center)
-      loadGroup.position.set(load.x + load.w/2, platH + load.y + load.h/2, load.z + load.d/2);
-
-      // Store dimensions and stack info for drag/boundary logic
-      loadGroup.userData.loadId = load.id;
-      loadGroup.userData.loadW = load.w;
-      loadGroup.userData.loadH = load.h;
-      loadGroup.userData.loadD = load.d;
-      loadGroup.userData.stackGroup = load.stackGroup || load.id;
-
-      // Enable shadows for all children
-      loadGroup.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
+        
+        // Determine load type for realistic model
+        let loadType = load.loadType || load.shape || 'box';
+        const nameLower = load.name.toLowerCase();
+        if (!load.shape) {
+          if (nameLower.includes('paper') || nameLower.includes('roll')) loadType = 'paper_roll';
+          else if (nameLower.includes('pallet')) loadType = 'pallet';
+          else if (nameLower.includes('coil')) loadType = 'coil';
+          else if (nameLower.includes('carton') || nameLower.includes('box')) loadType = 'carton';
+          else if (nameLower.includes('drum') || nameLower.includes('barrel')) loadType = 'drum';
+          else if (nameLower.includes('bag') || nameLower.includes('sack')) loadType = 'bag';
+          else if (nameLower.includes('pipe') || nameLower.includes('tube')) loadType = 'pipe';
+          else if (nameLower.includes('lumber') || nameLower.includes('wood')) loadType = 'lumber';
+          else if (nameLower.includes('crate')) loadType = 'carton';
         }
-      });
-
-      // Add selection/violation overlay (marked to skip raycaster)
-      if (selectedLoad === load.id) {
-        const boundingBox = new THREE.Box3().setFromObject(loadGroup);
-        const size = new THREE.Vector3();
-        boundingBox.getSize(size);
         
-        const overlayGeometry = new THREE.BoxGeometry(size.x * 1.05, size.y * 1.05, size.z * 1.05);
-        const overlayMaterial = new THREE.MeshStandardMaterial({
-          color: '#63b3ed',
-          emissive: '#3182ce',
-          emissiveIntensity: 0.5,
-          transparent: true,
-          opacity: 0.25,
-          wireframe: true
-        });
-        const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial);
-        overlay.userData.isOverlay = true;
-        loadGroup.add(overlay);
-      } else if (load.hasViolation) {
-        const boundingBox = new THREE.Box3().setFromObject(loadGroup);
-        const size = new THREE.Vector3();
-        boundingBox.getSize(size);
+         const loadGroup = await createLoadModelAsync(loadType, load.w, load.h, load.d, load.color, {
+           materialType: load.materialType,
+           textureUrl: load.textureUrl,
+           modelUrl: load.modelUrl,
+           orientation: {
+             x: 0,
+             y: load.rotationY ?? 0,
+             z: 0,
+           },
+         });
+         if (cancelled) break;
+         
+         // Position the load group (corner coords from backend → center for THREE.js)
+         // Backend x,y,z is the front-bottom-left corner.
+         // X: Front is 0, extends to carL. Load center is x + w/2.
+         // Y: Floor is platH. Load center is platH + y + h/2.
+         // Z: Left edge is -carW/2. Load center is -carW/2 + z + d/2.
+         loadGroup.position.set(
+           load.x + load.w / 2,
+           platH + load.y + load.h / 2,
+           -carW / 2 + load.z + load.d / 2
+         );
         
-        const overlayGeometry = new THREE.BoxGeometry(size.x * 1.05, size.y * 1.05, size.z * 1.05);
-        const overlayMaterial = new THREE.MeshStandardMaterial({
-          color: '#fc8181',
-          emissive: '#e53e3e',
-          emissiveIntensity: 0.6,
-          transparent: true,
-          opacity: 0.3,
-          wireframe: true
+        // Store dimensions and stack info for drag/boundary logic
+        loadGroup.userData.loadId = load.id;
+        loadGroup.userData.loadW = load.w;
+        loadGroup.userData.loadH = load.h;
+        loadGroup.userData.loadD = load.d;
+        loadGroup.userData.stackGroup = load.stackGroup || load.id;
+        
+        // Enable shadows for all children
+        loadGroup.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
         });
-        const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial);
-        overlay.userData.isOverlay = true;
-        loadGroup.add(overlay);
-      }
-
-      scene.add(loadGroup);
-      // Store the main group (not individual meshes)
-      loadMeshesRef.current.set(load.id, loadGroup as any);
+        
+        // Selection/violation overlay
+        if (selectedLoad === load.id) {
+          const boundingBox = new THREE.Box3().setFromObject(loadGroup);
+          const size = new THREE.Vector3();
+          boundingBox.getSize(size);
+          const overlayGeometry = new THREE.BoxGeometry(size.x * 1.05, size.y * 1.05, size.z * 1.05);
+          const overlayMaterial = new THREE.MeshStandardMaterial({
+            color: '#63b3ed', emissive: '#3182ce', emissiveIntensity: 0.5,
+            transparent: true, opacity: 0.25, wireframe: true
+          });
+          const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial);
+          overlay.userData.isOverlay = true;
+          loadGroup.add(overlay);
+        } else if (load.hasViolation) {
+          const boundingBox = new THREE.Box3().setFromObject(loadGroup);
+          const size = new THREE.Vector3();
+          boundingBox.getSize(size);
+          const overlayGeometry = new THREE.BoxGeometry(size.x * 1.05, size.y * 1.05, size.z * 1.05);
+          const overlayMaterial = new THREE.MeshStandardMaterial({
+            color: '#fc8181', emissive: '#e53e3e', emissiveIntensity: 0.6,
+            transparent: true, opacity: 0.3, wireframe: true
+          });
+          const overlay = new THREE.Mesh(overlayGeometry, overlayMaterial);
+          overlay.userData.isOverlay = true;
+          loadGroup.add(overlay);
+        }
+        
+        scene.add(loadGroup);
+        loadMeshesRef.current.set(load.id, loadGroup as any);
       }
     };
     void build();
@@ -697,7 +701,7 @@ export function Scene3D({
     );
     
     if (cogSphere) {
-      cogSphere.position.set(cogPosition.x, platH + cogPosition.y + 0.3, cogPosition.z);
+      cogSphere.position.set(cogPosition.x, platH + cogPosition.y + 0.3, cogPosition.z - carW / 2);
     }
   }, [cogPosition, isInitialized]);
 

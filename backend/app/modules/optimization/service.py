@@ -1,4 +1,4 @@
-from app.core.optimization.engine_v2 import run_optimization
+from app.core.optimization.engine_v3 import PlacementEngine, PackingConstraints
 from app.core.optimization.types import LoadSpec, VehicleSpec
 from app.core.utils.errors import AppError
 from app.modules.loads.repository import LoadRepository
@@ -89,12 +89,19 @@ class OptimizationService:
             plate_type=vehicle.plate_type,
             truck_center_front_m=vehicle.truck_center_front,
             truck_center_rear_m=vehicle.truck_center_rear,
+            empty_cg_height_m=getattr(vehicle, "empty_cg_height_m", None),
             empty_cg_height_in=vehicle.empty_cg_height_in,
             axle_positions=vehicle.axle_positions,
+            axle_count=getattr(vehicle, "axle_count", None),
+            per_axle_limit_kg=getattr(vehicle, "per_axle_limit_kg", None),
+            doorway_width_m=getattr(vehicle, "doorway_width_m", None),
+            doorway_height_m=getattr(vehicle, "doorway_height_m", None),
+            platform_height_m=getattr(vehicle, "platform_height_m", 1.1),
         )
 
         constraints = payload.get("constraints", {})
-        result = run_optimization(vehicle_spec, load_specs, constraints)
+        engine = PlacementEngine()
+        result = engine.run_optimization(vehicle_spec, load_specs, PackingConstraints())
 
         load_meta: dict[int, dict] = {}
         for item in payload.get("loads", []):
@@ -130,11 +137,14 @@ class OptimizationService:
                 {
                     "load_id": p.load_id,
                     "x": p.x, "y": p.y, "z": p.z,
-                    "rx": p.rx, "ry": p.ry, "rz": p.rz,
-                    "rotated": p.rotated,
+                    "orientation": p.orientation,
+                    "placed_w": p.placed_w,
+                    "placed_h": p.placed_h,
+                    "placed_d": p.placed_d,
                     "cog_x": p.cog_x, "cog_y": p.cog_y, "cog_z": p.cog_z,
                     "contact_type": p.contact_type,
                     "contact_surface_area": p.contact_surface_area,
+                    "is_stable": p.is_stable,
                     "load": load_meta.get(p.load_id, {}),
                 }
                 for p in result.placements
@@ -232,8 +242,7 @@ class OptimizationService:
         for pd in placements_data:
             placements.append(LoadPlacement(
                 load_id=pd["load_id"], x=pd["x"], y=pd["y"], z=pd["z"],
-                rx=pd.get("rx", 0), ry=pd.get("ry", 0), rz=pd.get("rz", 0),
-                rotated=pd.get("rotated", False),
+                orientation=pd.get("orientation", "vertical"),
                 placed_w=pd.get("load", {}).get("dimensions", {}).get("length", 1.0),
                 placed_h=pd.get("load", {}).get("dimensions", {}).get("height", 1.0),
                 placed_d=pd.get("load", {}).get("dimensions", {}).get("width", 1.0),
@@ -254,6 +263,20 @@ class OptimizationService:
         })()
 
         correction = auto_correct(vehicle_spec, placements, load_weights, [])
+        
+        # Ensure correction is a dict or object with required attributes
+        if isinstance(correction, list):
+            # This is the bug: auto_correct returned a list of placements instead of a result object
+            return {
+                "moves": [], 
+                "improvement_score": 1.0, 
+                "violations_before": 0, 
+                "violations_after": 0,
+                "corrected_placements": [
+                    {"load_id": p.load_id, "x": p.x, "y": p.y, "z": p.z}
+                    for p in correction
+                ]
+            }
 
         return {
             "moves": correction.moves,

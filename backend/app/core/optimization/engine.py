@@ -204,25 +204,69 @@ def balance_cg(vehicle, placements, load_weights):
     total = sum(load_weights.get(p.load_id, 0) for p in placements)
     if total == 0:
         return placements
-    # Use center of each load for CG calculation
-    cg_x = sum(
-        load_weights.get(p.load_id, 0) * (p.x + (p.placed_w or 1.0) / 2)
-        for p in placements
-    ) / total
-    offset = vehicle.length_m / 2 - cg_x
-    if abs(offset) > 0.05:
-        result = []
+    # Initial CG using centers
+    cg_x = sum(load_weights.get(p.load_id, 0) * (p.x + (p.placed_w or 0) / 2) for p in placements) / total
+    center = vehicle.length_m / 2
+    offset = center - cg_x
+    if abs(offset) <= 0.02:
+        print(f"  [BALANCE] CG already balanced (offset {offset:.3f}m)")
+        return placements
+    iterations = 5
+    for i in range(iterations):
+        new_placements = []
         for p in placements:
-            pw = p.placed_w or 1.0
-            new_x = max(0, min(vehicle.length_m - pw, p.x + offset))
-            result.append(LoadPlacement(
-                load_id=p.load_id, x=round(new_x, 3),
-                y=p.y, z=p.z, rx=p.rx, ry=p.ry, rz=p.rz, rotated=p.rotated,
+            w = load_weights.get(p.load_id, 0)
+            load_center = p.x + (p.placed_w or 0) / 2
+            direction = 1 if load_center < center else -1 if load_center > center else 0
+            delta = offset * (w / (total if total > 0 else 1)) * 0.8
+            new_x = max(0, min(vehicle.length_m - (p.placed_w or 0), p.x + direction * delta))
+            new_placements.append(LoadPlacement(
+                load_id=p.load_id, x=round(new_x, 3), y=p.y, z=p.z,
+                orientation=getattr(p, 'orientation', 'vertical'),
                 placed_w=p.placed_w, placed_h=p.placed_h, placed_d=p.placed_d,
             ))
-        print(f"  [BALANCE] CG shifted by {offset:.3f}m")
-        return result
-    print(f"  [BALANCE] CG already balanced (offset {offset:.3f}m)")
+        # Recompute CG
+        cg_x = sum(load_weights.get(pp.load_id, 0) * (pp.x + (pp.placed_w or 0) / 2) for pp in new_placements) / total
+        placements = new_placements
+        offset = center - cg_x
+        if abs(offset) <= 0.05:
+            print(f"  [BALANCE] CG balanced after {i+1} iterations (offset {offset:.3f}m)")
+            break
+    print(f"  [BALANCE] CG balancing ended (offset {offset:.3f}m) after {iterations} iterations")
+    # Optional lateral (Z) balancing to reduce side-to-side imbalance
+    total_w = sum(load_weights.get(p.load_id, 0) for p in placements)
+    if total_w > 0:
+        half_width = vehicle.width_m / 2
+        left_w = 0.0
+        right_w = 0.0
+        for p in placements:
+            w = load_weights.get(p.load_id, 0)
+            load_center_z = p.z + (p.placed_d or 0) / 2
+            if abs(load_center_z - half_width) < 0.01:
+                left_w += w / 2
+                right_w += w / 2
+            elif load_center_z < half_width:
+                left_w += w
+            else:
+                right_w += w
+        lat_imb = abs(left_w - right_w) / total_w if total_w > 0 else 0
+        # Always attempt lateral CG balancing when there is any imbalance; even small
+        if lat_imb > 0.0:
+            new_placements = []
+            for p in placements:
+                w = load_weights.get(p.load_id, 0)
+                load_center = p.z + (p.placed_d or 0) / 2
+                center_z = vehicle.width_m / 2
+                dir = -1 if load_center > center_z else 1 if load_center < center_z else 0
+                dz = (center_z - load_center) * (w / total_w) * 0.5
+                new_z = max(0, min(vehicle.width_m - (p.placed_d or 0), p.z + dir * max(0, dz)))
+                new_placements.append(LoadPlacement(
+                    load_id=p.load_id, x=p.x, y=p.y, z=round(new_z, 3), 
+                    orientation=getattr(p, 'orientation', 'vertical'),
+                    placed_w=p.placed_w, placed_h=p.placed_h, placed_d=p.placed_d,
+                ))
+            placements = new_placements
+            print(f"  [BALANCE] Lateral CG adjusted (lat_imb={lat_imb:.3f})")
     return placements
 
 

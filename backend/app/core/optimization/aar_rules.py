@@ -55,7 +55,7 @@ def validate_combined_cg(
     empty_cg = (vehicle.empty_cg_height_in or 45) * 0.0254  # inches to meters
 
     weighted_cg = sum(
-        load_weights.get(p.load_id, 0) * (p.y + PLATFORM_HEIGHT_M)
+        load_weights.get(p.load_id, 0) * (p.y + (p.placed_h or 0) / 2 + PLATFORM_HEIGHT_M)
         for p in placements
     )
     combined_cg = (weighted_cg + tare * empty_cg) / (total_weight + tare)
@@ -125,14 +125,22 @@ def validate_lateral_balance(
     right_weight = 0.0
     for p in placements:
         w = load_weights.get(p.load_id, 0)
-        load_center = p.z + (p.placed_d or 0) / 2
-        if abs(load_center - half_width) < 0.01:
-            left_weight += w / 2
-            right_weight += w / 2
-        elif load_center < half_width:
+        # Proportional distribution based on footprint relative to center
+        # Center of load is at z + placed_d / 2
+        # Load spans from z to z + placed_d
+        z_start = p.z
+        z_end = p.z + (p.placed_d or 0)
+        
+        if z_end <= half_width:
             left_weight += w
-        else:
+        elif z_start >= half_width:
             right_weight += w
+        else:
+            # Load straddles the center
+            left_part = (half_width - z_start) / (z_end - z_start)
+            left_weight += w * left_part
+            right_weight += w * (1 - left_part)
+            
     imbalance = abs(left_weight - right_weight) / total_weight if total_weight > 0 else 0
 
     violations: list[AARViolation] = []
@@ -168,15 +176,20 @@ def validate_longitudinal_balance(
     rear_weight = 0.0
     for p in placements:
         w = load_weights.get(p.load_id, 0)
-        load_center = p.x + (p.placed_w or 0) / 2
-        if abs(load_center - half_length) < 0.01:
-            # Load centered on centerline — split weight
-            front_weight += w / 2
-            rear_weight += w / 2
-        elif load_center < half_length:
+        # Proportional distribution based on footprint relative to center
+        x_start = p.x
+        x_end = p.x + (p.placed_w or 0)
+        
+        if x_end <= half_length:
             front_weight += w
-        else:
+        elif x_start >= half_length:
             rear_weight += w
+        else:
+            # Load straddles the center
+            front_part = (half_length - x_start) / (x_end - x_start)
+            front_weight += w * front_part
+            rear_weight += w * (1 - front_part)
+            
     imbalance = abs(front_weight - rear_weight) / total_weight if total_weight > 0 else 0
 
     violations: list[AARViolation] = []
@@ -290,9 +303,9 @@ def compute_metrics(
     tare = vehicle.tare_weight_kg or 0
 
     if total_weight > 0:
-        cg_x = sum(load_weights.get(p.load_id, 0) * p.x for p in placements) / total_weight
-        cg_y = sum(load_weights.get(p.load_id, 0) * (p.y + PLATFORM_HEIGHT_M) for p in placements) / total_weight
-        cg_z = sum(load_weights.get(p.load_id, 0) * p.z for p in placements) / total_weight
+        cg_x = sum(load_weights.get(p.load_id, 0) * (p.x + (p.placed_w or 0) / 2) for p in placements) / total_weight
+        cg_y = sum(load_weights.get(p.load_id, 0) * (p.y + (p.placed_h or 0) / 2 + PLATFORM_HEIGHT_M) for p in placements) / total_weight
+        cg_z = sum(load_weights.get(p.load_id, 0) * (p.z + (p.placed_d or 0) / 2) for p in placements) / total_weight
     else:
         cg_x = cg_y = cg_z = 0
 
@@ -378,7 +391,7 @@ def analyze_weight_distribution(vehicle, placements, load_weights):
             right_w += w
 
     cg_x = sum(load_weights.get(p.load_id, 0) * (p.x + (p.placed_w or 0) / 2) for p in placements) / max(total, 0.001)
-    cg_y = sum(load_weights.get(p.load_id, 0) * (p.y + (p.placed_h or 0) / 2) for p in placements) / max(total, 0.001)
+    cg_y = sum(load_weights.get(p.load_id, 0) * (p.y + (p.placed_h or 0) / 2 + PLATFORM_HEIGHT_M) for p in placements) / max(total, 0.001)
     cg_z = sum(load_weights.get(p.load_id, 0) * (p.z + (p.placed_d or 0) / 2) for p in placements) / max(total, 0.001)
 
     return {

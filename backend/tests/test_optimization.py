@@ -56,9 +56,9 @@ class TestNoOverlap:
 
     def test_collision_detection(self):
         placements = [
-            LoadPlacement(load_id=1, x=0, y=0, z=0, rx=0, ry=0, rz=0, rotated=False, 
+            LoadPlacement(load_id=1, x=0, y=0, z=0, orientation="vertical", 
                          placed_w=2, placed_h=1, placed_d=1),
-            LoadPlacement(load_id=2, x=1, y=0, z=0, rx=0, ry=0, rz=0, rotated=False, 
+            LoadPlacement(load_id=2, x=1, y=0, z=0, orientation="vertical", 
                          placed_w=2, placed_h=1, placed_d=1),
         ]
         violations = check_collisions(placements, {})
@@ -66,9 +66,9 @@ class TestNoOverlap:
 
     def test_no_collision_adjacent(self):
         placements = [
-            LoadPlacement(load_id=1, x=0, y=0, z=0, rx=0, ry=0, rz=0, rotated=False, 
+            LoadPlacement(load_id=1, x=0, y=0, z=0, orientation="vertical", 
                          placed_w=2, placed_h=1, placed_d=1),
-            LoadPlacement(load_id=2, x=2, y=0, z=0, rx=0, ry=0, rz=0, rotated=False, 
+            LoadPlacement(load_id=2, x=2, y=0, z=0, orientation="vertical", 
                          placed_w=2, placed_h=1, placed_d=1),
         ]
         violations = [v for v in check_collisions(placements, {}) if v.severity == "error"]
@@ -182,13 +182,13 @@ class TestPhysicsEngineBalance:
         placements = [
             LoadPlacement(
                 load_id=9, x=0.0, y=0.0, z=0.0,
-                rx=0, ry=0, rz=0, rotated=False,
+                orientation="vertical",
                 placed_w=1.0, placed_h=1.0, placed_d=1.0,
             )
             for _ in range(10)
         ]
 
-        violations = engine.validate_lateral_balance(v, placements, [load])
+        violations = engine.validate_lateral_balance(v, placements, {load.id: load.weight_kg * load.quantity})
         assert all(v.details and v.details["imbalance_pct"] <= 100 for v in violations)
 
     def test_repeated_load_ids_longitudinal_balance_uses_total_placed_weight(self):
@@ -198,13 +198,13 @@ class TestPhysicsEngineBalance:
         placements = [
             LoadPlacement(
                 load_id=9, x=0.0, y=0.0, z=0.0,
-                rx=0, ry=0, rz=0, rotated=False,
+                orientation="vertical",
                 placed_w=1.0, placed_h=1.0, placed_d=1.0,
             )
             for _ in range(10)
         ]
 
-        violations = engine.validate_longitudinal_balance(v, placements, [load])
+        violations = engine.validate_longitudinal_balance(v, placements, {load.id: load.weight_kg * load.quantity})
         assert all(v.details and v.details["imbalance_pct"] <= 100 for v in violations)
 
     def test_center_out_positions_balance_repeated_loads(self):

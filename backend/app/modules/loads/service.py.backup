@@ -25,6 +25,9 @@ class LoadService:
             dimensions=payload["dimensions"],
             weight=payload["weight"],
             quantity=payload.get("quantity", 1),
+            cg_x=payload.get("cg_x"),
+            cg_y=payload.get("cg_y"),
+            cg_z=payload.get("cg_z"),
             fragile=payload.get("fragile", False),
             stackable=payload.get("stackable", True),
             hazmat_class=payload.get("hazmat_class"),
@@ -34,7 +37,8 @@ class LoadService:
 
     def update_load(self, organization_id: int, load_id: int, payload: dict) -> Load:
         load = self.get_load(organization_id, load_id)
-        for field in ("type", "dimensions", "weight", "quantity", "fragile", "stackable", "hazmat_class", "diameter"):
+        for field in ("type", "dimensions", "weight", "quantity", "cg_x", "cg_y", "cg_z",
+                       "fragile", "stackable", "hazmat_class", "diameter"):
             if field in payload:
                 if field == "type":
                     setattr(load, field, LoadType(payload[field]))
