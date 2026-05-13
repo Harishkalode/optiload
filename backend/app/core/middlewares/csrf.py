@@ -55,5 +55,6 @@ def generate_csrf_token() -> str:
 
 
 def configure_csrf_exempt_paths(*, api_prefix: str) -> None:
-    """Register paths that should bypass CSRF protection."""
+    """Register paths that should bypass CSRF protection (credential/token-based auth)."""
     EXEMPT_PATHS.add(f"{api_prefix}/auth/login")
+    EXEMPT_PATHS.add(f"{api_prefix}/auth/refresh")
