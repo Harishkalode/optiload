@@ -7,6 +7,7 @@ Create Date: 2026-03-27 00:00:00
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 
 
 revision = '20260327_0001'
@@ -15,15 +16,15 @@ branch_labels = None
 depends_on = None
 
 
-organization_status = sa.Enum('active', 'suspended', 'deleted', name='organizationstatus', create_type=False)
-organization_plan_type = sa.Enum('starter', 'growth', 'enterprise', name='organizationplantype', create_type=False)
-role_scope = sa.Enum('global', 'org', name='rolescope', create_type=False)
-user_status = sa.Enum('active', 'invited', 'disabled', name='userstatus', create_type=False)
-vehicle_type = sa.Enum('railcar', 'container', name='vehicletype', create_type=False)
-load_type = sa.Enum('cylinder', 'cube', name='loadtype', create_type=False)
-load_session_status = sa.Enum('draft', 'optimized', 'failed', name='loadsessionstatus', create_type=False)
-optimization_status = sa.Enum('pending', 'running', 'completed', 'failed', name='optimizationstatus', create_type=False)
-metric_type = sa.Enum('cpu_usage', 'memory_usage', 'request_count', 'error_count', 'job_latency', name='metrictype', create_type=False)
+organization_status = PgEnum('active', 'suspended', 'deleted', name='organizationstatus', create_type=False)
+organization_plan_type = PgEnum('starter', 'growth', 'enterprise', name='organizationplantype', create_type=False)
+role_scope = PgEnum('global', 'org', name='rolescope', create_type=False)
+user_status = PgEnum('active', 'invited', 'disabled', name='userstatus', create_type=False)
+vehicle_type = PgEnum('railcar', 'container', name='vehicletype', create_type=False)
+load_type = PgEnum('cylinder', 'cube', name='loadtype', create_type=False)
+load_session_status = PgEnum('draft', 'optimized', 'failed', name='loadsessionstatus', create_type=False)
+optimization_status = PgEnum('pending', 'running', 'completed', 'failed', name='optimizationstatus', create_type=False)
+metric_type = PgEnum('cpu_usage', 'memory_usage', 'request_count', 'error_count', 'job_latency', name='metrictype', create_type=False)
 
 
 def upgrade() -> None:
