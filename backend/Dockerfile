@@ -18,6 +18,8 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app /app/app
+COPY alembic.ini /app/alembic.ini
+COPY migrations /app/migrations
 
 RUN chown -R optiload:optiload /app && \
     chmod -R 555 /app
@@ -30,4 +32,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 ENV UVICORN_WORKERS=4
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS} --timeout-graceful-shutdown 30
+CMD sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS} --timeout-graceful-shutdown 30"
