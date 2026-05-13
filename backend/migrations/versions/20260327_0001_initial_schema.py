@@ -27,17 +27,16 @@ metric_type = sa.Enum('cpu_usage', 'memory_usage', 'request_count', 'error_count
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    # Create ENUM types idempotently (IF NOT EXISTS handles stale types from failed runs)
-    op.execute("CREATE TYPE IF NOT EXISTS organizationstatus AS ENUM ('active', 'suspended', 'deleted')")
-    op.execute("CREATE TYPE IF NOT EXISTS organizationplantype AS ENUM ('starter', 'growth', 'enterprise')")
-    op.execute("CREATE TYPE IF NOT EXISTS rolescope AS ENUM ('global', 'org')")
-    op.execute("CREATE TYPE IF NOT EXISTS userstatus AS ENUM ('active', 'invited', 'disabled')")
-    op.execute("CREATE TYPE IF NOT EXISTS vehicletype AS ENUM ('railcar', 'container')")
-    op.execute("CREATE TYPE IF NOT EXISTS loadtype AS ENUM ('cylinder', 'cube')")
-    op.execute("CREATE TYPE IF NOT EXISTS loadsessionstatus AS ENUM ('draft', 'optimized', 'failed')")
-    op.execute("CREATE TYPE IF NOT EXISTS optimizationstatus AS ENUM ('pending', 'running', 'completed', 'failed')")
-    op.execute("CREATE TYPE IF NOT EXISTS metrictype AS ENUM ('cpu_usage', 'memory_usage', 'request_count', 'error_count', 'job_latency')")
+    # Create ENUM types idempotently (PG doesn't support CREATE TYPE IF NOT EXISTS, use DO block)
+    op.execute("DO $$ BEGIN CREATE TYPE organizationstatus AS ENUM ('active', 'suspended', 'deleted'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE organizationplantype AS ENUM ('starter', 'growth', 'enterprise'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE rolescope AS ENUM ('global', 'org'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE userstatus AS ENUM ('active', 'invited', 'disabled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE vehicletype AS ENUM ('railcar', 'container'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE loadtype AS ENUM ('cylinder', 'cube'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE loadsessionstatus AS ENUM ('draft', 'optimized', 'failed'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE optimizationstatus AS ENUM ('pending', 'running', 'completed', 'failed'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE metrictype AS ENUM ('cpu_usage', 'memory_usage', 'request_count', 'error_count', 'job_latency'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
 
     op.create_table(
         'organizations',
