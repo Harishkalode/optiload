@@ -1,0 +1,55 @@
+# Railway Deployment Configuration
+# See: https://docs.railway.app/
+
+[build]
+# Backend build settings
+builder = "dockerfile"
+dockerfile = "./backend/Dockerfile"
+context = "./backend"
+
+[deploy]
+# Deployment settings
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+healthcheckPath = "/api/v1/meta/health"
+healthcheckTimeout = 100
+
+[env]
+# These will be set in Railway dashboard as variables
+# Database connection (Neon PostgreSQL)
+OPTILOAD_DATABASE_URL = "postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require"
+OPTILOAD_DATABASE_READ_URL = "postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require"
+
+# Environment
+OPTILOAD_ENVIRONMENT = "production"
+
+# Security - MUST be overridden in Railway dashboard
+OPTILOAD_JWT_SECRET_KEY = "CHANGE_ME_GENERATE_SECURE_KEY"
+
+# CORS - Point to your frontend domain
+OPTILOAD_CORS_ALLOWED_ORIGINS = '["https://optiload-fe.up.railway.app"]'
+OPTILOAD_TRUSTED_HOSTS = '["optiload-be.up.railway.app"]'
+
+# Redis for rate limiting (set in Railway dashboard)
+OPTILOAD_REDIS_URL = "CHANGE_ME_SET_REDIS_URL"
+
+# Registration and features
+OPTILOAD_ALLOW_PUBLIC_REGISTRATION = "false"
+
+# Rate limiting with Redis
+OPTILOAD_RATE_LIMIT_BACKEND = "redis"
+OPTILOAD_RATE_LIMIT_PER_MINUTE = "60"
+OPTILOAD_AUTH_LOGIN_RATE_LIMIT_PER_MINUTE = "5"
+
+# Database connection pooling
+OPTILOAD_DB_POOL_SIZE = "20"
+OPTILOAD_DB_MAX_OVERFLOW = "40"
+
+# Logging
+OPTILOAD_LOG_LEVEL = "WARNING"
+OPTILOAD_STRUCTURED_LOGGING = "true"
+OPTILOAD_ACCESS_LOG_ENABLED = "false"
+OPTILOAD_ENABLE_API_DOCS = "false"
+
+# Demo mode disabled in production
+OPTILOAD_DEMO_MODE = "false"
+DEMO_MODE = "false"
