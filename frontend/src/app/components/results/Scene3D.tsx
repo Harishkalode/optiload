@@ -610,16 +610,16 @@ export function Scene3D({
         }
         
          const loadGroup = await createLoadModelAsync(loadType, load.w, load.h, load.d, load.color, {
-           materialType: load.materialType,
-           textureUrl: load.textureUrl,
-           modelUrl: load.modelUrl,
-           orientationLabel: load.orientation,
-           orientation: {
-             x: 0,
-             y: load.rotationY ?? 0,
-             z: 0,
-           },
-         });
+            materialType: load.materialType,
+            textureUrl: load.textureUrl,
+            modelUrl: load.modelUrl,
+            orientationLabel: load.orientation,
+            orientation: {
+              x: (load.orientation ?? 'horizontal') === 'horizontal' ? 0 : Math.PI / 2,
+              y: load.rotationY ?? 0,
+              z: 0,
+            },
+          });
          if (cancelled) break;
          
          // Position the load group (corner coords from backend → center for THREE.js)

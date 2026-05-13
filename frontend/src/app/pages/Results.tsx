@@ -226,7 +226,10 @@ export function Results() {
       fetchOptimizationResult(Number(id))
         .then(r => {
           console.log('[Results] API response:', r);
-          if (r.efficiency_score != null) setApiEfficiency(r.efficiency_score * 100);
+          if (r.efficiency_score != null) {
+            const raw = r.efficiency_score;
+            setApiEfficiency(raw > 1 ? raw : raw * 100);
+          }
           const result = (r as any).result ?? {};
           console.log('[Results] result object:', result);
           const placements = result.placements ?? [];
@@ -281,7 +284,7 @@ export function Results() {
                 materialType: p.load?.material_type,
                 textureUrl: p.load?.texture_url,
                 modelUrl: p.load?.model_url,
-                orientation: p.load?.orientation,
+                orientation: p.orientation ?? p.load?.orientation,
                 color: ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4','#EC4899','#84CC16'][i % 8],
                 hasViolation: false,
               };

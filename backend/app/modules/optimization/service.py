@@ -205,7 +205,7 @@ class OptimizationService:
                 result_json["loading_sequence"] = result.extra_data.get("loading_sequence", {})
                 result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
 
-            efficiency = result.metrics.volume_utilization * 0.5 + result.metrics.weight_utilization * 0.5
+            efficiency = min(result.metrics.volume_utilization * 0.5 + result.metrics.weight_utilization * 0.5, 1.0)
             has_errors = any(v.severity == "error" for v in result.violations)
             status = OptimizationStatus.failed if has_errors else OptimizationStatus.completed
             placements_count = len(result.placements)

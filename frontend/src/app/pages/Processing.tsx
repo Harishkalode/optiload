@@ -58,8 +58,9 @@ export function Processing() {
             break;
           }
           if (st.status === 'failed') {
-            setError('Optimization failed');
+            setDone(true);
             cancelled = true;
+            setTimeout(() => navigate(`/jobs/results?id=${jobId}`), 900);
             break;
           }
         } catch (e) {
