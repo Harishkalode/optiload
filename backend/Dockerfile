@@ -7,8 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OPTILOAD_JWT_SECRET_KEY=E1zZo1KiEFHF9srVaR1ZLfakYGBRTn1zvHOz3jrdI8-HDqBfbd69vAaoUdAbV-v1 \
     OPTILOAD_REDIS_URL=redis://default:c3o1Yl4iMvhVpzj8jZFjRszzbmqH5GMW@redis-15167.c239.us-east-1-2.ec2.cloud.redislabs.com:15167 \
     OPTILOAD_DATABASE_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require \
-    OPTILOAD_DATABASE_READ_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require \
-    OPTILOAD_SEED_ON_STARTUP=true
+    OPTILOAD_DATABASE_READ_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require
 
 WORKDIR /app
 
@@ -21,7 +20,6 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY app /app/app
 COPY alembic.ini /app/alembic.ini
 COPY migrations /app/migrations
-COPY seed_data.json /app/seed_data.json
 
 RUN chown -R optiload:optiload /app && \
     chmod -R 555 /app
