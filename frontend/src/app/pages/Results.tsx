@@ -328,7 +328,7 @@ export function Results() {
           rows
             .slice(0, 14)
             .reverse()
-            .map(r => ({ t: `OPT-${r.id}`, v: (r.efficiency_score ?? 0) * 100 })),
+            .map(r => ({ t: `OPT-${r.id}`, v: (r.efficiency_score ?? 0) > 1 ? (r.efficiency_score ?? 0) : (r.efficiency_score ?? 0) * 100 })),
         );
       })
       .catch(() => setTrendData(EMPTY_TREND));

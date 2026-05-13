@@ -83,7 +83,7 @@ export function Dashboard() {
     Array.from({ length: n }, (_, i) => ({
       efficiency: Math.max(0, base / 100 + Math.sin(i * 0.8) * variance + (Math.random() - 0.5) * variance),
     }));
-  const effPct = ((summary?.avg_efficiency ?? 0) * 100).toFixed(1);
+  const effPct = ((summary?.avg_efficiency ?? 0) > 1 ? (summary?.avg_efficiency ?? 0) : (summary?.avg_efficiency ?? 0) * 100).toFixed(1);
 
   const KPI_CARDS = summary
     ? [
@@ -231,7 +231,8 @@ export function Dashboard() {
                   <tbody>
                     {jobs.map(job => {
                       const st = STATUS_MAP[job.status] ?? { badge: 'info' as const, label: job.status };
-                      const uPct = ((job.efficiency_score ?? 0) * 100);
+                      const rawEff = job.efficiency_score ?? 0;
+                      const uPct = rawEff > 1 ? rawEff : rawEff * 100;
                       return (
                         <tr
                           key={job.id}

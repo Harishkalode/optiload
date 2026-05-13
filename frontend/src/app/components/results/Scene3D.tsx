@@ -615,7 +615,7 @@ export function Scene3D({
             modelUrl: load.modelUrl,
             orientationLabel: load.orientation,
             orientation: {
-              x: (load.orientation ?? 'horizontal') === 'horizontal' ? 0 : Math.PI / 2,
+              x: load.orientation === 'vertical' ? 0 : Math.PI / 2,
               y: load.rotationY ?? 0,
               z: 0,
             },
