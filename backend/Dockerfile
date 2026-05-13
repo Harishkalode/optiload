@@ -2,7 +2,14 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    OPTILOAD_ENVIRONMENT=production \
+    OPTILOAD_JWT_SECRET_KEY=E1zZo1KiEFHF9srVaR1ZLfakYGBRTn1zvHOz3jrdI8-HDqBfbd69vAaoUdAbV-v1 \
+    OPTILOAD_REDIS_URL=redis://default:c3o1Yl4iMvhVpzj8jZFjRszzbmqH5GMW@redis-15167.c239.us-east-1-2.ec2.cloud.redislabs.com:15167 \
+    OPTILOAD_CORS_ALLOWED_ORIGINS=["https://optiload-fe.up.railway.app"] \
+    OPTILOAD_TRUSTED_HOSTS=["optiload-be.up.railway.app"] \
+    OPTILOAD_DATABASE_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require \
+    OPTILOAD_DATABASE_READ_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require
 
 WORKDIR /app
 
