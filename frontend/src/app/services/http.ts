@@ -20,6 +20,11 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function csrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function refreshSession(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
@@ -52,12 +57,16 @@ async function refreshSession(): Promise<boolean> {
 }
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const csrfHeader = method !== 'GET' ? { 'X-CSRF-Token': csrfToken() ?? '' } : {};
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(),
+      ...csrfHeader,
       ...(init.headers ?? {}),
     },
   });
