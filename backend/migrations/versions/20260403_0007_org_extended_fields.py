@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = '20260403_0007_org_extended_fields'
-down_revision = None  # Will be set by migration chain
+down_revision = '20260401_0005'
 branch_labels = None
 depends_on = None
 
