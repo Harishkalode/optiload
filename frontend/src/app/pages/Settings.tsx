@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sun, Moon, Monitor, Check, RotateCcw, Loader2, Building2, Save } from 'lucide-react';
+import { Sun, Moon, Monitor, Check, RotateCcw, Loader2, Building2, Save, Zap } from 'lucide-react';
 import { useTheme, PALETTES, PaletteName, ColorMode } from '../contexts/ThemeContext';
 import { OLCard, OLCardHeader } from '../components/ui/OLCard';
 import { OLButton } from '../components/ui/OLButton';
@@ -18,6 +18,8 @@ export function Settings() {
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgSaving, setOrgSaving] = useState(false);
   const [orgForm, setOrgForm] = useState<Partial<OrgRow>>({});
+
+  const [demoEnabled, setDemoEnabled] = useState(() => localStorage.getItem('optiload_demo_mode') === 'true');
 
   useEffect(() => {
     const load = async () => {
@@ -190,6 +192,40 @@ export function Settings() {
               </div>
             </div>
           </div>
+        </div>
+      </OLCard>
+
+      {/* Demo Mode */}
+      <OLCard padding="24px">
+        <OLCardHeader title="Demo Mode" subtitle="Enable demo templates for optimization results (session only, resets on logout)" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Zap size={20} style={{ color: palette.accent }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: textPrimary }}>Demo Mode</div>
+              <div style={{ fontSize: '11px', color: text }}>
+                {demoEnabled ? 'On — optimizations return demo results' : 'Off — optimizations run real algorithms'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const next = !demoEnabled;
+              setDemoEnabled(next);
+              localStorage.setItem('optiload_demo_mode', next ? 'true' : '');
+              toast.success(next ? 'Demo mode enabled (session only)' : 'Demo mode disabled');
+            }}
+            className="rounded-full transition-all"
+            style={{
+              width: 48, height: 26, position: 'relative', border: 'none', cursor: 'pointer',
+              background: demoEnabled ? palette.primary : (isDark ? '#334155' : '#CBD5E1'),
+            }}
+          >
+            <div className="rounded-full shadow-sm transition-all" style={{
+              width: 22, height: 22, position: 'absolute', top: 2,
+              left: demoEnabled ? 24 : 2, background: '#fff',
+            }} />
+          </button>
         </div>
       </OLCard>
 

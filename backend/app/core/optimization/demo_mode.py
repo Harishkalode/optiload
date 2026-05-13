@@ -5,7 +5,6 @@ Demo Mode Integration - Bridges demo templates with optimization service.
 import json
 from typing import Optional, Dict, Any
 from app.core.optimization.types import LoadPlacement, VehicleSpec, LoadSpec
-from app.core.config import settings
 
 
 # ─── DEMO LOAD METADATA ────────────────────────────────────────────────
@@ -47,10 +46,8 @@ DEMO_LOAD_META = {
 }
 
 
-def is_demo_mode_enabled() -> bool:
-    demo_mode = settings.demo_mode.lower()
-    print(f"\n[SERVICE] DEMO_MODE {demo_mode}")
-    return demo_mode == "true"
+def is_demo_mode_enabled(demo_header: str | None = None) -> bool:
+    return (demo_header or "").lower() == "true"
 
 
 def detect_railcar_type(vehicle_spec: VehicleSpec) -> str:

@@ -9,7 +9,7 @@ from app.modules.optimization.repository import OptimizationRepository
 from app.modules.optimization.service import OptimizationService
 from app.modules.optimization.validator import OptimizationRunRequest
 from app.modules.vehicles.repository import VehicleRepository
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 import traceback
 
@@ -21,14 +21,15 @@ def _service(db: Session) -> OptimizationService:
 
 
 @router.post("/run")
-def run_optimization(payload: OptimizationRunRequest, db: Session = Depends(get_db),
+def run_optimization(payload: OptimizationRunRequest, request: Request, db: Session = Depends(get_db),
                      current_user=Depends(get_current_user)):
     require_permission(db, current_user, AppPermission.OPTIMIZATION_RUN)
     org_id = get_tenant_organization_id(current_user)
     if org_id is None:
         raise AppError("ORG_REQUIRED", "organization context is required")
     try:
-        optimization = _service(db).run(org_id, payload.model_dump(), actor_user_id=current_user.id)
+        optimization = _service(db).run(org_id, payload.model_dump(), actor_user_id=current_user.id,
+                                        demo_header=request.headers.get("X-Demo-Mode"))
     except AppError:
         raise
     except Exception as e:

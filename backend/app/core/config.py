@@ -103,7 +103,6 @@ class Settings(BaseSettings):
     enable_query_counter: bool | None = None
     query_counter_threshold: int = 10
 
-    demo_mode: str = "true"
     # ─── ENVIRONMENT RESOLUTION ──────────────────────────────────────
     @property
     def resolved_environment(self) -> Literal["local", "testing", "production"]:

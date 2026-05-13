@@ -8,7 +8,6 @@ Coordinate System:
 - Z-axis: Left (0) → Right (IW), runs across railcar width in meters
 """
 
-import os
 from typing import Dict, List, Optional
 from app.core.optimization.types import LoadPlacement
 
@@ -283,8 +282,5 @@ def get_demo_template_60ft() -> Dict:
 def get_demo_template(railcar_type: str) -> Dict:
     if "60" in str(railcar_type).lower():
         return get_demo_template_60ft()
-    return get_demo_template_50ft()
+        return get_demo_template_50ft()
 
-
-def is_demo_mode() -> bool:
-    return os.getenv("OPTILOAD_DEMO_MODE", "false").lower() == "true"

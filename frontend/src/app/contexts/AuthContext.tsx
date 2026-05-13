@@ -178,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: null, role: null, token: null, isAuthenticated: false });
     localStorage.removeItem('optiload_user');
     localStorage.removeItem('optiload_access_token');
+    localStorage.removeItem('optiload_demo_mode');
     sessionStorage.removeItem(SESSION_FLAG_KEY);
   };
 
