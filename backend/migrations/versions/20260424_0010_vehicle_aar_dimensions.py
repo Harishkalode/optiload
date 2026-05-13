@@ -12,8 +12,8 @@ Changes:
 from alembic import op
 import sqlalchemy as sa
 
-revision = '20260424_0010_vehicle_aar_dimensions'
-down_revision = '20260424_0009_simplify_load_model'
+revision = '20260424_0010'
+down_revision = '20260424_0009'
 branch_labels = None
 depends_on = None
 

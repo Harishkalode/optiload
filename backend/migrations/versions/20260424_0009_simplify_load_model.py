@@ -11,7 +11,7 @@ Phase 0.1 changes:
 from alembic import op
 import sqlalchemy as sa
 
-revision = '20260424_0009_simplify_load_model'
+revision = '20260424_0009'
 down_revision = '15f39a619ad4'
 branch_labels = None
 depends_on = None

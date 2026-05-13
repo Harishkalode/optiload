@@ -11,7 +11,7 @@ Changes:
 from alembic import op
 import sqlalchemy as sa
 
-revision = '20260426_0011_vehicle_optimization'
+revision = '20260426_0011'
 down_revision = 'cb86a53114e0'
 branch_labels = None
 depends_on = None
