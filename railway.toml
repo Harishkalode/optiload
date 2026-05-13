@@ -9,9 +9,8 @@ context = "./backend"
 
 [deploy]
 # Deployment settings
-startCommand = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
-healthcheckPath = "/api/v1/meta/health"
-healthcheckTimeout = 100
+# startCommand removed to allow Dockerfiles to define the correct startup command per service
+# healthcheckPath should be configured per-service in the Railway UI
 
 [env]
 # These will be set in Railway dashboard as variables
