@@ -128,7 +128,7 @@ class Settings(BaseSettings):
 
     @property
     def include_tokens_in_json_response(self) -> bool:
-        return not self.is_production
+        return True
 
     # ─── ENVIRONMENT-DRIVEN DEFAULTS ─────────────────────────────────
     def model_post_init(self, __context) -> None:
