@@ -168,3 +168,5 @@ demo.py
 node_modules
 dist
 .git
+cookies.txt
+cookies*.txt
