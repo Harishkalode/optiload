@@ -22,14 +22,14 @@ OPTILOAD_DATABASE_READ_URL = "postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-wint
 OPTILOAD_ENVIRONMENT = "production"
 
 # Security - MUST be overridden in Railway dashboard
-OPTILOAD_JWT_SECRET_KEY = "CHANGE_ME_GENERATE_SECURE_KEY"
+OPTILOAD_JWT_SECRET_KEY = "E1zZo1KiEFHF9srVaR1ZLfakYGBRTn1zvHOz3jrdI8-HDqBfbd69vAaoUdAbV-v1"
 
 # CORS - Point to your frontend domain
 OPTILOAD_CORS_ALLOWED_ORIGINS = '["https://optiload-fe.up.railway.app"]'
 OPTILOAD_TRUSTED_HOSTS = '["optiload-be.up.railway.app"]'
 
 # Redis for rate limiting (set in Railway dashboard)
-OPTILOAD_REDIS_URL = "CHANGE_ME_SET_REDIS_URL"
+OPTILOAD_REDIS_URL = "redis://default:c3o1Yl4iMvhVpzj8jZFjRszzbmqH5GMW@redis-15167.c239.us-east-1-2.ec2.cloud.redislabs.com:15167"
 
 # Registration and features
 OPTILOAD_ALLOW_PUBLIC_REGISTRATION = "false"
