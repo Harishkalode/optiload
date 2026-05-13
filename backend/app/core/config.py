@@ -25,10 +25,11 @@ class Settings(BaseSettings):
     # ─── CORE ────────────────────────────────────────────────────────
     app_name: str = "OptiLoad"
     api_prefix: str = "/api/v1"
-    environment: str = "local"
+    environment: str = "production"
 
     # ─── DATABASE ────────────────────────────────────────────────────
-    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/optiload"
+    # database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/optiload"
+    database_url: str = "postgresql://postgres:CpLTgjFMNZaAFXGvgCxjravWWjNTkZIF@postgres.railway.internal:5432/railway"
     database_read_url: str | None = None
 
     db_pool_size: int | None = None
@@ -100,6 +101,7 @@ class Settings(BaseSettings):
     enable_query_counter: bool | None = None
     query_counter_threshold: int = 10
 
+    demo_mode: str = "true"
     # ─── ENVIRONMENT RESOLUTION ──────────────────────────────────────
     @property
     def resolved_environment(self) -> Literal["local", "testing", "production"]:

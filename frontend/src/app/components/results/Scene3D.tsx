@@ -613,6 +613,7 @@ export function Scene3D({
            materialType: load.materialType,
            textureUrl: load.textureUrl,
            modelUrl: load.modelUrl,
+           orientationLabel: load.orientation,
            orientation: {
              x: 0,
              y: load.rotationY ?? 0,

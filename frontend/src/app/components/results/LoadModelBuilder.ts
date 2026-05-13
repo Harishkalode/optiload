@@ -70,61 +70,114 @@ function strapMaterial(): THREE.MeshStandardMaterial {
  * - Product label sticker
  * - Edge chamfer rings
  */
-export function createPaperRollModel(w: number, h: number, d: number, color: string): THREE.Group {
+export function createPaperRollModel(w: number, h: number, d: number, color: string, orientation?: string): THREE.Group {
   const group = new THREE.Group();
-  // For a paper roll: w=d=diameter, h=length (lying on its side)
   const radius = w / 2;
   const length = h;
+  const isVertical = orientation === 'vertical';
 
-  // Main cylinder (kraft paper)
-  const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 32);
-  const cyl = new THREE.Mesh(cylGeo, kraftMaterial());
-  cyl.rotation.x = Math.PI / 2;
-  cyl.castShadow = true;
-  cyl.receiveShadow = true;
-  group.add(cyl);
+  if (isVertical) {
+    // ── Standing upright (axis = Y) ──
+    // Main cylinder (axis = Y by default, no rotation)
+    const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 32);
+    const cyl = new THREE.Mesh(cylGeo, kraftMaterial());
+    cyl.castShadow = true;
+    cyl.receiveShadow = true;
+    group.add(cyl);
 
-  // End caps (lighter paper)
-  const capGeo = new THREE.CircleGeometry(radius * 0.95, 32);
-  const capMat = new THREE.MeshStandardMaterial({ color: '#d4c5a9', roughness: 0.9 });
-  [1, -1].forEach(dir => {
-    const cap = new THREE.Mesh(capGeo, capMat);
-    cap.position.z = dir * length / 2;
-    if (dir < 0) cap.rotation.y = Math.PI;
-    group.add(cap);
-  });
+    // End caps (top and bottom)
+    const capGeo = new THREE.CircleGeometry(radius * 0.95, 32);
+    const capMat = new THREE.MeshStandardMaterial({ color: '#d4c5a9', roughness: 0.9 });
+    [1, -1].forEach(dir => {
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.y = dir * length / 2;
+      cap.rotation.x = dir < 0 ? Math.PI / 2 : -Math.PI / 2;
+      group.add(cap);
+    });
 
-  // Plastic wrap (slightly larger, transparent)
-  const wrapGeo = new THREE.CylinderGeometry(radius + 0.01, radius + 0.01, length * 0.85, 32);
-  const wrap = new THREE.Mesh(wrapGeo, plasticWrapMaterial());
-  wrap.rotation.x = Math.PI / 2;
-  group.add(wrap);
+    // Plastic wrap
+    const wrapGeo = new THREE.CylinderGeometry(radius + 0.01, radius + 0.01, length * 0.85, 32);
+    const wrap = new THREE.Mesh(wrapGeo, plasticWrapMaterial());
+    group.add(wrap);
 
-  // Steel banding straps (2-3 around circumference)
-  const bandGeo = new THREE.TorusGeometry(radius + 0.015, 0.012, 8, 32);
-  const bandMat = strapMaterial();
-  [-0.25, 0, 0.25].forEach(pos => {
-    const band = new THREE.Mesh(bandGeo, bandMat);
-    band.position.z = pos * length;
-    group.add(band);
-  });
+    // Steel banding straps (horizontal rings)
+    const bandGeo = new THREE.TorusGeometry(radius + 0.015, 0.012, 8, 32);
+    const bandMat = strapMaterial();
+    [-0.25, 0, 0.25].forEach(pos => {
+      const band = new THREE.Mesh(bandGeo, bandMat);
+      band.position.y = pos * length;
+      band.rotation.x = Math.PI / 2;
+      group.add(band);
+    });
 
-  // Product label on top
-  const labelGeo = new THREE.PlaneGeometry(radius * 0.5, radius * 0.25);
-  const labelMat = new THREE.MeshStandardMaterial({ color: '#f7fafc', roughness: 0.4 });
-  const label = new THREE.Mesh(labelGeo, labelMat);
-  label.position.set(0, radius + 0.02, 0);
-  label.rotation.x = -Math.PI / 2;
-  group.add(label);
+    // Product label on the side (front face)
+    const labelGeo = new THREE.PlaneGeometry(radius * 0.5, radius * 0.25);
+    const labelMat = new THREE.MeshStandardMaterial({ color: '#f7fafc', roughness: 0.4 });
+    const label = new THREE.Mesh(labelGeo, labelMat);
+    label.position.set(0, 0, radius + 0.02);
+    group.add(label);
 
-  // Edge rings (darker paper at edges)
-  const edgeGeo = new THREE.TorusGeometry(radius, 0.015, 8, 32);
-  const edgeMat = new THREE.MeshStandardMaterial({ color: '#8b7355', roughness: 0.9 });
-  [1, -1].forEach(dir => {
-    const edge = new THREE.Mesh(edgeGeo, edgeMat);
-    edge.position.z = dir * (length / 2 - 0.03);
-    group.add(edge);
-  });
+    // Edge rings (top and bottom)
+    const edgeGeo = new THREE.TorusGeometry(radius, 0.015, 8, 32);
+    const edgeMat = new THREE.MeshStandardMaterial({ color: '#8b7355', roughness: 0.9 });
+    [1, -1].forEach(dir => {
+      const edge = new THREE.Mesh(edgeGeo, edgeMat);
+      edge.position.y = dir * (length / 2 - 0.03);
+      edge.rotation.x = Math.PI / 2;
+      group.add(edge);
+    });
+  } else {
+    // ── Lying flat (axis = Z) ──
+    // Main cylinder
+    const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 32);
+    const cyl = new THREE.Mesh(cylGeo, kraftMaterial());
+    cyl.rotation.x = Math.PI / 2;
+    cyl.castShadow = true;
+    cyl.receiveShadow = true;
+    group.add(cyl);
+
+    // End caps (front and back)
+    const capGeo = new THREE.CircleGeometry(radius * 0.95, 32);
+    const capMat = new THREE.MeshStandardMaterial({ color: '#d4c5a9', roughness: 0.9 });
+    [1, -1].forEach(dir => {
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.z = dir * length / 2;
+      if (dir < 0) cap.rotation.y = Math.PI;
+      group.add(cap);
+    });
+
+    // Plastic wrap
+    const wrapGeo = new THREE.CylinderGeometry(radius + 0.01, radius + 0.01, length * 0.85, 32);
+    const wrap = new THREE.Mesh(wrapGeo, plasticWrapMaterial());
+    wrap.rotation.x = Math.PI / 2;
+    group.add(wrap);
+
+    // Steel banding straps
+    const bandGeo = new THREE.TorusGeometry(radius + 0.015, 0.012, 8, 32);
+    const bandMat = strapMaterial();
+    [-0.25, 0, 0.25].forEach(pos => {
+      const band = new THREE.Mesh(bandGeo, bandMat);
+      band.position.z = pos * length;
+      group.add(band);
+    });
+
+    // Product label on top
+    const labelGeo = new THREE.PlaneGeometry(radius * 0.5, radius * 0.25);
+    const labelMat = new THREE.MeshStandardMaterial({ color: '#f7fafc', roughness: 0.4 });
+    const label = new THREE.Mesh(labelGeo, labelMat);
+    label.position.set(0, radius + 0.02, 0);
+    label.rotation.x = -Math.PI / 2;
+    group.add(label);
+
+    // Edge rings
+    const edgeGeo = new THREE.TorusGeometry(radius, 0.015, 8, 32);
+    const edgeMat = new THREE.MeshStandardMaterial({ color: '#8b7355', roughness: 0.9 });
+    [1, -1].forEach(dir => {
+      const edge = new THREE.Mesh(edgeGeo, edgeMat);
+      edge.position.z = dir * (length / 2 - 0.03);
+      group.add(edge);
+    });
+  }
 
   return group;
 }
@@ -598,7 +651,7 @@ export function createGenericBoxModel(w: number, h: number, d: number, color: st
 // ── Load Model Factory ──────────────────────────────────────────────────────
 
 /** Load type mapping to model builder */
-const LOAD_MODEL_MAP: Record<string, (w: number, h: number, d: number, color: string) => THREE.Group> = {
+const LOAD_MODEL_MAP: Record<string, (w: number, h: number, d: number, color: string, orientation?: string) => THREE.Group> = {
   cube: createGenericBoxModel,
   cuboid: createGenericBoxModel,
   irregular: createGenericBoxModel,
@@ -621,6 +674,7 @@ export interface LoadVisualSpec {
   textureUrl?: string;
   modelUrl?: string;
   orientation?: { x?: number; y?: number; z?: number };
+  orientationLabel?: string;
 }
 
 function fitGroupToDimensions(group: THREE.Group, w: number, h: number, d: number): void {
@@ -687,9 +741,9 @@ function applyMaterialHints(group: THREE.Group, spec: LoadVisualSpec, color: str
  * @param color - Base color hex string
  * @returns THREE.Group containing the load model
  */
-export function createLoadModel(loadType: string, w: number, h: number, d: number, color: string): THREE.Group {
+export function createLoadModel(loadType: string, w: number, h: number, d: number, color: string, orientation?: string): THREE.Group {
   const builder = LOAD_MODEL_MAP[loadType.toLowerCase()] || createGenericBoxModel;
-  return builder(w, h, d, color);
+  return builder(w, h, d, color, orientation);
 }
 
 export async function createLoadModelAsync(
@@ -721,7 +775,7 @@ export async function createLoadModelAsync(
     }
   }
 
-  const procedural = createLoadModel(loadType, w, h, d, color);
+  const procedural = createLoadModel(loadType, w, h, d, color, visual.orientationLabel);
   applyMaterialHints(procedural, visual, color);
   if (visual.orientation) {
     procedural.rotation.set(
