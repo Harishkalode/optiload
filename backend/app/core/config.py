@@ -67,9 +67,9 @@ class Settings(BaseSettings):
 
     # ─── CORS / HOSTS ────────────────────────────────────────────────
     # cors_allowed_origins: list[str] = ["http://localhost:5173"]
-    cors_allowed_origins: list[str] = ["https://optiload.up.railway.app"]
+    cors_allowed_origins: list[str] = ["https://optiload-fe.up.railway.app"]
     # trusted_hosts: list[str] = ["localhost", "127.0.0.1"]
-    trusted_hosts: list[str] = ["optiload.up.railway.app"]
+    trusted_hosts: list[str] = ["optiload-be.up.railway.app", "localhost", "127.0.0.1"]
 
     # ─── REGISTRATION ────────────────────────────────────────────────
     allow_public_registration: bool | None = None
