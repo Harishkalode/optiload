@@ -77,8 +77,9 @@ def create_app() -> FastAPI:
     application.add_middleware(RateLimitMiddleware)
 
     if settings.csrf_enabled:
-        from app.core.middlewares.csrf import CSRFMiddleware
+        from app.core.middlewares.csrf import CSRFMiddleware, configure_csrf_exempt_paths
 
+        configure_csrf_exempt_paths(api_prefix=settings.api_prefix)
         application.add_middleware(CSRFMiddleware)
 
     from app.core.middlewares.request_id import RequestIDMiddleware
