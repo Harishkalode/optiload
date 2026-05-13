@@ -5,6 +5,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { apiRequest } from '../services/http';
 
 export interface LoadPlacement {
   load_id: number;
@@ -87,10 +88,9 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setError(null);
     setOptimizationId(optId);
     try {
-      const response = await fetch(`/api/optimization/${optId}/result`);
-      const data = await response.json();
-      if (data.success && data.data.result) {
-        const res = data.data.result;
+      const data = await apiRequest<{ result: any }>(`/optimization/${optId}/result`);
+      if (data.result) {
+        const res = data.result;
         const optimizationResult: OptimizationResult = {
           placements: res.placements || [],
           securements: res.securements || [],
@@ -126,14 +126,12 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setHistoryIndex(historyIndex + 1);
 
       // Validate with backend (optional)
-      const response = await fetch(`/api/optimization/${optimizationId}/validate`, {
+      const data = await apiRequest<{ violations: any[] }>(`/optimization/${optimizationId}/validate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ placements: updated.placements }),
       });
-      const data = await response.json();
-      if (data.success) {
-        setResult(prev => prev ? { ...prev, violations: data.data.violations || [] } : null);
+      if (data) {
+        setResult(prev => prev ? { ...prev, violations: data.violations || [] } : null);
       }
     } catch (err) {
       console.error('Failed to set placement:', err);

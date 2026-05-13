@@ -17,17 +17,17 @@ export interface OrgRow {
   created_at: string;
 }
 
-export function fetchOrganization() {
+export async function fetchOrganization() {
   return apiRequest<OrgRow>('/organization');
 }
 
-export function updateOrganization(payload: Partial<OrgRow>) {
+export async function updateOrganization(payload: Partial<OrgRow>) {
   return apiRequest<{ id: number; name: string }>('/organization', {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
 }
 
-export function fetchOrganizationPlan() {
+export async function fetchOrganizationPlan() {
   return apiRequest<{ organization_id: number; plan_type: string; status: string }>('/organization/plan');
 }

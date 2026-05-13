@@ -13,11 +13,9 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app /app/app
-COPY .env.production /app/.env.production
 
 RUN chown -R optiload:optiload /app && \
-    chmod -R 555 /app && \
-    chmod 444 /app/.env.production
+    chmod -R 555 /app
 
 USER optiload
 

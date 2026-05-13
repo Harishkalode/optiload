@@ -20,5 +20,12 @@ export async function getOptimization(id: number): Promise<{
   result_json: Record<string, unknown>;
   created_at: string;
 }> {
-  return apiRequest(`/optimization/${id}`);
+  return apiRequest<{
+    id: number;
+    organization_id: number;
+    vehicle_id: number;
+    status: string;
+    result_json: Record<string, unknown>;
+    created_at: string;
+  }>(`/optimization/${id}`);
 }
