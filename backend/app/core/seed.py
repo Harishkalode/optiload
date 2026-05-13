@@ -1,12 +1,15 @@
 """Seed service: populates the database with seed data from seed_data.json."""
 
 import json
+import logging
 from pathlib import Path
 
 from sqlalchemy import text
 
 from app.core.database.session import engine as db_engine
 from app.core.utils.responses import success_response
+
+logger = logging.getLogger("optiload.seed")
 
 SEED_FILE = Path(__file__).resolve().parent.parent.parent / "seed_data.json"
 
@@ -91,8 +94,10 @@ class SeedDataService:
                     if max_id is not None:
                         conn.execute(text(f"SELECT setval('{table}_id_seq', {max_id})"))
 
-            return success_response({
+            result = success_response({
                 "tables_seeded": len([t for t, c in table_counts.items() if c > 0]),
                 "total_rows": sum(table_counts.values()),
                 "details": table_counts,
             })
+            logger.info("✓ Seed complete: %d total rows across %d tables", result["data"]["total_rows"], result["data"]["tables_seeded"])
+            return result
