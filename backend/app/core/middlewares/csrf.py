@@ -32,6 +32,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
 
+        # Skip CSRF if a Bearer token is present — Bearer token auth is
+        # immune to CSRF because an attacker cannot set the Authorization header.
+        # All non-exempt, non-GET endpoints require authentication anyway.
+        if request.headers.get("Authorization", "").startswith("Bearer "):
+            return await call_next(request)
+
         csrf_header = request.headers.get("X-CSRF-Token")
         csrf_cookie = request.cookies.get("csrf_token")
 
