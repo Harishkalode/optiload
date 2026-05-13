@@ -17,6 +17,8 @@ from app.modules.vehicles.controller import router as vehicles_router
 from fastapi import APIRouter
 
 from app.core.health import router as health_router
+from app.core.seed import SeedDataService
+from app.core.utils.responses import success_response
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -36,3 +38,9 @@ api_router.include_router(dashboard_router)
 api_router.include_router(audit_logs_router)
 api_router.include_router(system_monitoring_router)
 api_router.include_router(health_router)
+
+
+@api_router.post("/seed", include_in_schema=False)
+async def seed_database():
+    service = SeedDataService()
+    return service.run_seed()

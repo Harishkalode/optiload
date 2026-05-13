@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY app /app/app
 COPY alembic.ini /app/alembic.ini
 COPY migrations /app/migrations
+COPY seed_data.json /app/seed_data.json
 
 RUN chown -R optiload:optiload /app && \
     chmod -R 555 /app
