@@ -1,4 +1,5 @@
 import logging
+import os
 import signal
 import sys
 
@@ -175,3 +176,12 @@ def on_startup() -> None:
             ).bootstrap_super_admin()
     finally:
         db.close()
+
+    if os.getenv("OPTILOAD_SEED_ON_STARTUP", "").lower() in ("true", "1"):
+        try:
+            from app.core.seed import SeedDataService
+
+            result = SeedDataService().run_seed()
+            logger.info("Database seeded successfully: %s", result)
+        except Exception:
+            logger.exception("Failed to seed database on startup")

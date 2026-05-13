@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OPTILOAD_JWT_SECRET_KEY=E1zZo1KiEFHF9srVaR1ZLfakYGBRTn1zvHOz3jrdI8-HDqBfbd69vAaoUdAbV-v1 \
     OPTILOAD_REDIS_URL=redis://default:c3o1Yl4iMvhVpzj8jZFjRszzbmqH5GMW@redis-15167.c239.us-east-1-2.ec2.cloud.redislabs.com:15167 \
     OPTILOAD_DATABASE_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require \
-    OPTILOAD_DATABASE_READ_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require
+    OPTILOAD_DATABASE_READ_URL=postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require \
+    OPTILOAD_SEED_ON_STARTUP=true
 
 WORKDIR /app
 

@@ -10,15 +10,7 @@ from app.core.utils.responses import success_response
 
 SEED_FILE = Path(__file__).resolve().parent.parent.parent / "seed_data.json"
 
-SEQUENCE_TABLES = [
-    "organizations",
-    "roles",
-    "permissions",
-    "users",
-    "loads",
-    "vehicles",
-]
-
+# Truncation order: children first (FK-dependent tables before their parents)
 TRUNCATE_ORDER = [
     "user_preferences",
     "loads",
@@ -28,6 +20,18 @@ TRUNCATE_ORDER = [
     "roles",
     "permissions",
     "organizations",
+]
+
+# Insert order: parents first (reverse of truncation order)
+INSERT_ORDER = list(reversed(TRUNCATE_ORDER))
+
+SEQUENCE_TABLES = [
+    "organizations",
+    "roles",
+    "permissions",
+    "users",
+    "loads",
+    "vehicles",
 ]
 
 
@@ -47,14 +51,18 @@ class SeedDataService:
     def run_seed(self) -> dict:
         data = self._load_data()
         with db_engine.connect() as conn:
-            with conn.begin():
-                conn.execute(text("SET session_replication_role = 'replica'"))
+            # Ensure public schema exists (Neon databases may lack it)
+            conn.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
+            conn.commit()
 
+            with conn.begin():
+                # Truncate all seeded tables, children first
                 truncate_list = ", ".join(f'"{t}"' for t in TRUNCATE_ORDER)
                 conn.execute(text(f"TRUNCATE TABLE {truncate_list} RESTART IDENTITY CASCADE"))
 
+                # Insert data, parents first to respect FK constraints
                 table_counts = {}
-                for table in TRUNCATE_ORDER:
+                for table in INSERT_ORDER:
                     rows = data.get(table, [])
                     if not rows:
                         table_counts[table] = 0
@@ -74,6 +82,7 @@ class SeedDataService:
 
                     table_counts[table] = len(rows)
 
+                # Reset sequences for tables with serial/identity columns
                 for table in SEQUENCE_TABLES:
                     if table not in TRUNCATE_ORDER:
                         continue
@@ -82,10 +91,8 @@ class SeedDataService:
                     if max_id is not None:
                         conn.execute(text(f"SELECT setval('{table}_id_seq', {max_id})"))
 
-                conn.execute(text("SET session_replication_role = 'origin'"))
-
             return success_response({
-                "tables_seeded": len(table_counts),
+                "tables_seeded": len([t for t, c in table_counts.items() if c > 0]),
                 "total_rows": sum(table_counts.values()),
                 "details": table_counts,
             })
