@@ -66,8 +66,10 @@ class Settings(BaseSettings):
     max_request_body_bytes: int | None = None
 
     # ─── CORS / HOSTS ────────────────────────────────────────────────
-    cors_allowed_origins: list[str] = ["http://localhost:5173"]
-    trusted_hosts: list[str] = ["localhost", "127.0.0.1"]
+    # cors_allowed_origins: list[str] = ["http://localhost:5173"]
+    cors_allowed_origins: list[str] = ["https://optiload.up.railway.app"]
+    # trusted_hosts: list[str] = ["localhost", "127.0.0.1"]
+    trusted_hosts: list[str] = ["optiload.up.railway.app"]
 
     # ─── REGISTRATION ────────────────────────────────────────────────
     allow_public_registration: bool | None = None
