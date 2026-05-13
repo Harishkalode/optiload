@@ -21,7 +21,7 @@
     {
       "id": 1,
       "name": "super_admin",
-      "scope": "global_scope",
+      "scope": "global",
       "description": "Platform owner"
     },
     {
