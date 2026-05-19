@@ -33,8 +33,21 @@ class PhysicsEngine:
     
     def compute_combined_cog(self, vehicle: VehicleSpec, placements: List[LoadPlacement],
                             loads_dict: dict[int, LoadSpec]) -> CenterOfGravity:
+        """
+        Compute combined center of gravity (vehicle + loads).
+        
+        Reference frames:
+        - Placements use vehicle DECK coordinates: y=0 at deck, y increases upward
+        - Vehicle tare CoG is given as "above rail" per AAR 3.5.1
+        - AAR limits are measured "above rail" (top of wheel)
+        
+        Conversion: above_deck = above_rail - platform_height
+        """
         tare_weight_kg = vehicle.tare_weight_kg or 0.0
-        empty_cg_height_m = vehicle.empty_cg_height_m or 0.75
+        empty_cg_height_m = vehicle.empty_cg_height_m or 0.75  # above rail
+        
+        # Convert tare CoG from "above rail" to "above deck" for calculation
+        tare_cg_above_deck = empty_cg_height_m - PLATFORM_HEIGHT_M
         
         total_load_weight = 0.0
         for p in placements:
@@ -47,16 +60,17 @@ class PhysicsEngine:
         if total_weight <= 0:
             return CenterOfGravity(
                 x_m=vehicle.length_m / 2.0,
-                y_m=empty_cg_height_m,
+                y_m=tare_cg_above_deck,
                 z_m=vehicle.width_m / 2.0,
-                height_inches=empty_cg_height_m * 39.3701,
+                height_inches=empty_cg_height_m * 39.3701,  # Already above rail
                 total_weight=0.0,
                 is_valid=False,
             )
         
+        # Calculate moments using deck-relative coordinates
         moment_x = tare_weight_kg * (vehicle.length_m / 2.0)
         moment_z = tare_weight_kg * (vehicle.width_m / 2.0)
-        moment_y = tare_weight_kg * empty_cg_height_m
+        moment_y = tare_weight_kg * tare_cg_above_deck  # Converted to deck coords
         
         for p in placements:
             load = loads_dict.get(p.load_id)
@@ -66,20 +80,23 @@ class PhysicsEngine:
             weight = load.weight_kg * load.quantity
             load_cg_x = p.x + p.placed_d / 2.0
             load_cg_z = p.z + p.placed_w / 2.0
-            load_cg_y = p.y + p.placed_h / 2.0
+            load_cg_y = p.y + p.placed_h / 2.0  # Already in deck coords
             
             moment_x += weight * load_cg_x
             moment_z += weight * load_cg_z
             moment_y += weight * load_cg_y
         
+        # Combined CoG (still in deck-relative coords)
         cog_x = moment_x / total_weight
         cog_z = moment_z / total_weight
-        cog_y = moment_y / total_weight
-        # CG height above rail = height above floor + platform height
-        cog_height_inches = (cog_y + PLATFORM_HEIGHT_M) * 39.3701
+        cog_y_above_deck = moment_y / total_weight
+        
+        # Convert back to "above rail" for AAR compliance check and output
+        cog_y_above_rail = cog_y_above_deck + PLATFORM_HEIGHT_M
+        cog_height_inches = cog_y_above_rail * 39.3701
         
         return CenterOfGravity(
-            x_m=cog_x, y_m=cog_y, z_m=cog_z,
+            x_m=cog_x, y_m=cog_y_above_deck, z_m=cog_z,
             height_inches=cog_height_inches,
             total_weight=total_weight,
             is_valid=(cog_height_inches <= CG_HEIGHT_LIMIT_INCHES),

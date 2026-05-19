@@ -173,5 +173,17 @@ def on_startup() -> None:
                 AuthRepository(db),
                 AuditLogService(AuditLogRepository(db)),
             ).bootstrap_super_admin()
+
+            # Bootstrap default AAR vehicles for the platform org if any
+            try:
+                from app.modules.vehicles.service import VehicleService
+                from app.modules.vehicles.repository import VehicleRepository
+                from app.modules.organizations.model import Organization
+
+                org = db.query(Organization).first()
+                if org:
+                    VehicleService(VehicleRepository(db)).bootstrap_default_vehicles(org.id)
+            except Exception:
+                logger.exception("Vehicle bootstrap failed (non-fatal)")
     finally:
         db.close()

@@ -1,9 +1,4 @@
-from app.core.optimization.demo_mode import (
-    is_demo_mode_enabled,
-    detect_railcar_type,
-    get_demo_placements,
-    generate_demo_result_json,
-)
+from app.core.optimization.demo_mode import is_demo_mode_enabled
 from app.core.optimization.engine_v3 import PlacementEngine, PackingConstraints
 from app.core.optimization.types import LoadSpec, VehicleSpec
 from app.core.utils.errors import AppError
@@ -110,113 +105,106 @@ class OptimizationService:
 
         load_meta: dict[int, dict] = {}
 
-        # ─── DEMO MODE ─────────────────────────────────────────────────
+        # ─── RUN OPTIMIZATION ENGINE (used for both demo and real mode) ──
+        engine = PlacementEngine()
+        result = engine.run_optimization(vehicle_spec, load_specs, PackingConstraints())
+
+        for item in payload.get("loads", []):
+            load = self.load_repository.get_by_id(item["load_id"])
+            if load:
+                load_meta[load.id] = {
+                    "name": f"Load-{load.id}",
+                    "type": load.type.value if hasattr(load.type, "value") else str(load.type),
+                    "shape": (load.dimensions or {}).get("shape", load.type.value if hasattr(load.type, "value") else str(load.type)),
+                    "load_type": (load.dimensions or {}).get("load_type"),
+                    "weight": load.weight,
+                    "dimensions": load.dimensions or {},
+                    "material_type": (load.dimensions or {}).get("material_type"),
+                    "texture_url": (load.dimensions or {}).get("texture_url"),
+                    "model_url": (load.dimensions or {}).get("model_url"),
+                    "orientation": (load.dimensions or {}).get("orientation"),
+                    "fragile": getattr(load, "fragile", False),
+                    "stackable": getattr(load, "stackable", True),
+                    "hazmat_class": getattr(load, "hazmat_class", None),
+                }
+
+        result_json = {
+            "vehicle": {
+                "type": vehicle.type.value if hasattr(vehicle.type, "value") else str(vehicle.type),
+                "length_m": v_len,
+                "width_m": v_wid,
+                "height_m": v_ht,
+                "capacity_kg": vehicle.capacity or max_weight,
+                "tare_weight_kg": vehicle.tare_weight_kg or 20000,
+                "axle_positions": vehicle.axle_positions or [],
+            },
+            "placements": [
+                {
+                    "load_id": p.load_id,
+                    "x": p.x, "y": p.y, "z": p.z,
+                    "orientation": p.orientation,
+                    "placed_w": p.placed_w,
+                    "placed_h": p.placed_h,
+                    "placed_d": p.placed_d,
+                    "cog_x": p.cog_x, "cog_y": p.cog_y, "cog_z": p.cog_z,
+                    "contact_type": p.contact_type,
+                    "contact_surface_area": p.contact_surface_area,
+                    "is_stable": p.is_stable,
+                    "load": load_meta.get(p.load_id, {}),
+                }
+                for p in result.placements
+            ],
+            "metrics": {
+                "cg_x": result.metrics.cg_x,
+                "cg_y": result.metrics.cg_y,
+                "cg_z": result.metrics.cg_z,
+                "axle_loads": result.metrics.axle_loads,
+                "lateral_imbalance_pct": result.metrics.lateral_imbalance_pct,
+                "longitudinal_imbalance_pct": result.metrics.longitudinal_imbalance_pct,
+                "volume_utilization": result.metrics.volume_utilization,
+                "weight_utilization": result.metrics.weight_utilization,
+            },
+            "violations": [
+                {"rule": v.rule, "message": v.message, "severity": v.severity}
+                for v in result.violations
+            ],
+            "warnings": [
+                {"rule": v.rule, "message": v.message, "severity": v.severity}
+                for v in result.warnings
+            ],
+            "error_message": None,
+        }
+
+        # Include extra analysis data
+        if result.extra_data:
+            result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
+            result_json["material_analysis"] = result.extra_data.get("material_analysis", [])
+            result_json["compression_analysis"] = result.extra_data.get("compression_analysis", [])
+            result_json["weight_distribution"] = result.extra_data.get("weight_distribution", {})
+            result_json["fillers"] = result.extra_data.get("fillers", [])
+            result_json["void_count"] = result.extra_data.get("void_count", 0)
+            result_json["void_volume"] = result.extra_data.get("void_volume", 0)
+            result_json["filled_volume"] = result.extra_data.get("filled_volume", 0)
+            result_json["loading_sequence"] = result.extra_data.get("loading_sequence", {})
+            result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
+
+        # ─── DEMO MODE: Tag result as demo but use real engine output ──
         demo_enabled = is_demo_mode_enabled(demo_header) or user_demo_mode
         if demo_enabled:
-            railcar_type = detect_railcar_type(vehicle_spec)
-            demo_placements = get_demo_placements(railcar_type)
-            result_json = generate_demo_result_json(
-                vehicle_spec, demo_placements, load_meta, railcar_type,
-            )
-            efficiency = 0.85
-            status = OptimizationStatus.completed
-            has_errors = False
-            placements_count = len(demo_placements)
-            error_message = None
-        else:
-            engine = PlacementEngine()
-            result = engine.run_optimization(vehicle_spec, load_specs, PackingConstraints())
+            result_json["is_demo"] = True
+            result_json["demo_note"] = f"Demo result for {vehicle_spec.type} railcar."
 
-            for item in payload.get("loads", []):
-                load = self.load_repository.get_by_id(item["load_id"])
-                if load:
-                    load_meta[load.id] = {
-                        "name": f"Load-{load.id}",
-                        "type": load.type.value if hasattr(load.type, "value") else str(load.type),
-                        "shape": (load.dimensions or {}).get("shape", load.type.value if hasattr(load.type, "value") else str(load.type)),
-                        "load_type": (load.dimensions or {}).get("load_type"),
-                        "weight": load.weight,
-                        "dimensions": load.dimensions or {},
-                        "material_type": (load.dimensions or {}).get("material_type"),
-                        "texture_url": (load.dimensions or {}).get("texture_url"),
-                        "model_url": (load.dimensions or {}).get("model_url"),
-                        "orientation": (load.dimensions or {}).get("orientation"),
-                        "fragile": getattr(load, "fragile", False),
-                        "stackable": getattr(load, "stackable", True),
-                        "hazmat_class": getattr(load, "hazmat_class", None),
-                    }
+        efficiency = min(result.metrics.volume_utilization * 0.5 + result.metrics.weight_utilization * 0.5, 1.0)
+        has_errors = any(v.severity == "error" for v in result.violations)
+        status = OptimizationStatus.failed if has_errors else OptimizationStatus.completed
+        placements_count = len(result.placements)
 
-            result_json = {
-                "vehicle": {
-                    "type": vehicle.type.value if hasattr(vehicle.type, "value") else str(vehicle.type),
-                    "length_m": v_len,
-                    "width_m": v_wid,
-                    "height_m": v_ht,
-                    "capacity_kg": vehicle.capacity or max_weight,
-                    "tare_weight_kg": vehicle.tare_weight_kg or 20000,
-                    "axle_positions": vehicle.axle_positions or [],
-                },
-                "placements": [
-                    {
-                        "load_id": p.load_id,
-                        "x": p.x, "y": p.y, "z": p.z,
-                        "orientation": p.orientation,
-                        "placed_w": p.placed_w,
-                        "placed_h": p.placed_h,
-                        "placed_d": p.placed_d,
-                        "cog_x": p.cog_x, "cog_y": p.cog_y, "cog_z": p.cog_z,
-                        "contact_type": p.contact_type,
-                        "contact_surface_area": p.contact_surface_area,
-                        "is_stable": p.is_stable,
-                        "load": load_meta.get(p.load_id, {}),
-                    }
-                    for p in result.placements
-                ],
-                "metrics": {
-                    "cg_x": result.metrics.cg_x,
-                    "cg_y": result.metrics.cg_y,
-                    "cg_z": result.metrics.cg_z,
-                    "axle_loads": result.metrics.axle_loads,
-                    "lateral_imbalance_pct": result.metrics.lateral_imbalance_pct,
-                    "longitudinal_imbalance_pct": result.metrics.longitudinal_imbalance_pct,
-                    "volume_utilization": result.metrics.volume_utilization,
-                    "weight_utilization": result.metrics.weight_utilization,
-                },
-                "violations": [
-                    {"rule": v.rule, "message": v.message, "severity": v.severity}
-                    for v in result.violations
-                ],
-                "warnings": [
-                    {"rule": v.rule, "message": v.message, "severity": v.severity}
-                    for v in result.warnings
-                ],
-                "error_message": None,
-            }
-
-            # Include extra analysis data
-            if result.extra_data:
-                result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
-                result_json["material_analysis"] = result.extra_data.get("material_analysis", [])
-                result_json["compression_analysis"] = result.extra_data.get("compression_analysis", [])
-                result_json["weight_distribution"] = result.extra_data.get("weight_distribution", {})
-                result_json["fillers"] = result.extra_data.get("fillers", [])
-                result_json["void_count"] = result.extra_data.get("void_count", 0)
-                result_json["void_volume"] = result.extra_data.get("void_volume", 0)
-                result_json["filled_volume"] = result.extra_data.get("filled_volume", 0)
-                result_json["loading_sequence"] = result.extra_data.get("loading_sequence", {})
-                result_json["suggested_securements"] = result.extra_data.get("suggested_securements", [])
-
-            efficiency = min(result.metrics.volume_utilization * 0.5 + result.metrics.weight_utilization * 0.5, 1.0)
-            has_errors = any(v.severity == "error" for v in result.violations)
-            status = OptimizationStatus.failed if has_errors else OptimizationStatus.completed
-            placements_count = len(result.placements)
-
-            error_message = None
-            if has_errors:
-                error_violations = [v for v in result.violations if v.severity == "error"]
-                error_message = "; ".join(f"{v.rule}: {v.message}" for v in error_violations[:5])
-                result_json["error_message"] = error_message
-                print(f"[SERVICE] Optimization has {len(error_violations)} errors: {error_message}")
+        error_message = None
+        if has_errors:
+            error_violations = [v for v in result.violations if v.severity == "error"]
+            error_message = "; ".join(f"{v.rule}: {v.message}" for v in error_violations[:5])
+            result_json["error_message"] = error_message
+            print(f"[SERVICE] Optimization has {len(error_violations)} errors: {error_message}")
 
         optimization = Optimization(
             organization_id=organization_id,

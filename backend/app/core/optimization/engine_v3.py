@@ -163,12 +163,12 @@ class PlacementEngine:
                     
                     if validation.valid:
                         # Final physics check for stability
-                        trial.contact_type = "floor"  # Assume floor contact
+                        # Determine contact type based on height
+                        trial.contact_type = "floor" if trial.y <= 0.001 else "load"
                         stable, area, _ = self.physics_engine.validate_contact_stability(trial, load)
                         if stable:
                             trial.is_stable = True
                             trial.contact_surface_area = area
-                            trial.contact_type = "floor"
                             
                             # Score this placement
                             test_placements = existing_placements + [trial]
@@ -209,14 +209,17 @@ class PlacementEngine:
         """
         Generate deterministic candidate positions (x, y, z).
         Order: Center-outward, layer-by-layer (bottom-up).
+        
+        All positions enforce 5cm safety margin from vehicle edges.
         """
         candidates = []
+        margin = getattr(self, 'safety_margin', 0.05)  # 5cm safety margin
+        tolerance = 0.001  # 1mm tolerance for floating point
         
         # 1. Y-axis: Layer by layer from floor up
         curr_y = 0.0
-        margin = getattr(self, 'safety_margin', 0.05)
         # Ensure we don't place loads that would exceed vehicle interior minus margin
-        while curr_y + h <= vehicle.height_m - margin + 1e-9:
+        while curr_y + h <= vehicle.height_m - margin + tolerance:
             
             # 2. Z-axis: Lateral center-outward
             center_z = vehicle.width_m / 2.0
@@ -225,7 +228,7 @@ class PlacementEngine:
             for z_off in z_offsets:
                 z = center_z + z_off - w/2.0
                 # enforce lateral margin
-                if z < margin - 1e-9 or z > vehicle.width_m - w - margin + 1e-9:
+                if z < margin - tolerance or z > vehicle.width_m - w - margin + tolerance:
                     continue
                 
                 # 3. X-axis: Longitudinal center-outward
@@ -235,7 +238,7 @@ class PlacementEngine:
                 for x_off in x_offsets:
                     x = center_x + x_off - d/2.0
                     # enforce longitudinal margin
-                    if x < margin - 1e-9 or x > vehicle.length_m - d - margin + 1e-9:
+                    if x < margin - tolerance or x > vehicle.length_m - d - margin + tolerance:
                         continue
 
                     candidates.append((x, curr_y, z))
@@ -269,18 +272,26 @@ class PlacementEngine:
         
         # 1. Bounds Check - enforce safety margin so loads remain clearly inside vehicle
         bounds_ok = True
-        margin = getattr(self, 'safety_margin', 0.05)
-        if trial.x < margin - 1e-9:
-            violations.append(AARViolation("bounds", f"Load x={trial.x} < margin {margin}", "error"))
+        margin = getattr(self, 'safety_margin', 0.05)  # 5cm safety margin
+        tolerance = 0.001  # 1mm floating point tolerance
+        
+        if trial.x < margin - tolerance:
+            violations.append(AARViolation("bounds", f"Load x={trial.x:.3f}m < margin {margin}m", "error"))
             bounds_ok = False
-        if trial.z < margin - 1e-9:
-            violations.append(AARViolation("bounds", f"Load z={trial.z} < margin {margin}", "error"))
+        if trial.z < margin - tolerance:
+            violations.append(AARViolation("bounds", f"Load z={trial.z:.3f}m < margin {margin}m", "error"))
             bounds_ok = False
-        if trial.x + trial.placed_d > vehicle.length_m - margin + 1e-9:
-            violations.append(AARViolation("bounds", "Load exceeds rear/margin", "error"))
+        if trial.x + trial.placed_d > vehicle.length_m - margin + tolerance:
+            violations.append(AARViolation("bounds", f"Load exceeds rear (x+d={trial.x + trial.placed_d:.3f}m > {vehicle.length_m - margin:.3f}m)", "error"))
             bounds_ok = False
-        if trial.z + trial.placed_w > vehicle.width_m - margin + 1e-9:
-            violations.append(AARViolation("bounds", "Load exceeds side/margin", "error"))
+        if trial.z + trial.placed_w > vehicle.width_m - margin + tolerance:
+            violations.append(AARViolation("bounds", f"Load exceeds side (z+w={trial.z + trial.placed_w:.3f}m > {vehicle.width_m - margin:.3f}m)", "error"))
+            bounds_ok = False
+        if trial.y < -tolerance:  # Y can be exactly 0 (on floor)
+            violations.append(AARViolation("bounds", f"Load y={trial.y:.3f}m < 0", "error"))
+            bounds_ok = False
+        if trial.y + trial.placed_h > vehicle.height_m + tolerance:
+            violations.append(AARViolation("bounds", f"Load exceeds ceiling (y+h={trial.y + trial.placed_h:.3f}m > {vehicle.height_m:.3f}m)", "error"))
             bounds_ok = False
         
         # Skip other checks if bounds failed
@@ -288,11 +299,51 @@ class PlacementEngine:
             errors = [v for v in violations if v.severity == "error"]
             return AARValidationResult(valid=len(errors)==0, violations=violations)
         
-        # 2. Collision Detection (Overlapping loads)
+        # 2. Floating Load Check - load must have support from floor or other load
+        floating = self._check_floating_load(trial, existing)
+        if floating:
+            violations.append(AARViolation("physics_floating", f"Load {trial.load_id} floating at y={trial.y:.2f}m with no support", "error"))
+        
+        # 3. Collision Detection (Overlapping loads)
         if self._has_collision(trial, existing):
             violations.append(AARViolation("collision", "Load overlaps with another load", "error"))
-            
-        # 3. Physics/CoG check (Temporary state)
+        
+        # 3.5 Vehicle-Type-Specific Constraints
+        vtype = vehicle.type.lower() if hasattr(vehicle, 'type') else ''
+        if vtype == 'reefer':
+            # Reefer engine room occupies front ~0.6m - no loads there
+            engine_room_depth = getattr(vehicle, 'doorway_width_m', 0.6) or 0.6
+            if trial.x < engine_room_depth:
+                violations.append(AARViolation("vehicle_type", f"Reefer engine room at front {engine_room_depth:.1f}m: load x={trial.x:.2f}m too close", "error"))
+            # Airflow: leave gap between loads for circulation
+            for other in existing:
+                x_gap = trial.x - (other.x + other.placed_d)
+                if 0.01 < x_gap < 0.1 and abs(trial.y - other.y) < 0.01:
+                    violations.append(AARViolation("vehicle_type", f"Reefer airflow gap {x_gap:.2f}m too narrow between loads", "warning"))
+        elif vtype == 'gondola':
+            # Gondola side walls are ~1.98m high; loads above must not exceed vehicle height
+            wall_height = min(vehicle.height_m, 1.98)
+            if trial.y + trial.placed_h > wall_height:
+                violations.append(AARViolation("vehicle_type", f"Gondola load extends above side walls (y+h={trial.y + trial.placed_h:.2f}m > wall {wall_height:.2f}m); needs bracing", "warning"))
+        elif vtype == 'boxcar':
+            # Boxcar doorway zone: middle 2.44m of width must be clear at doorway
+            door_width = getattr(vehicle, 'doorway_width_m', 2.44) or 2.44
+            door_left = (vehicle.width_m - door_width) / 2
+            trial_left = trial.z
+            trial_right = trial.z + trial.placed_w
+            # Check if load spans across doorway zone near the doors
+            doorway_center_x = vehicle.length_m / 2
+            if abs(trial.x + trial.placed_d / 2 - doorway_center_x) < 0.5:
+                # Load is near doorway - check if it blocks door
+                if trial_left < door_left + door_width and trial_right > door_left:
+                    violations.append(AARViolation("vehicle_type", "Boxcar: load blocks doorway zone", "warning"))
+        elif vtype == 'flatcar':
+            # Flatcar: open deck, no side wall constraint (wider margin allowed)
+            # Relaxed margin - allow loads closer to edges
+            if trial.z < 0.02:
+                violations.append(AARViolation("vehicle_type", f"Flatcar: load z={trial.z:.3f}m too close to edge", "warning"))
+        
+        # 4. Physics/CoG check (Temporary state)
         test_placements = existing + [trial]
         cg = self.physics_engine.compute_combined_cog(vehicle, test_placements, loads_dict)
         
@@ -320,23 +371,72 @@ class PlacementEngine:
             violations=violations
         )
 
-    def _has_collision(self, trial: LoadPlacement, existing: List[LoadPlacement]) -> bool:
-        """3D AABB collision detection."""
+    def _check_floating_load(self, trial: LoadPlacement, existing: List[LoadPlacement]) -> bool:
+        """
+        Check if a load is floating (not supported).
+        A load floats if:
+        - It's above the floor (y > 0.001m)
+        - AND it has no contact with another load below it
+        
+        Returns True if floating (error), False if supported (ok).
+        """
+        # Loads essentially on floor are always supported
+        if trial.y <= 0.001:
+            return False
+        
+        # Check if any existing load supports this trial load
+        # Support means: trial rests on top of existing load
         for other in existing:
-            # Check if they overlap in all 3 dimensions
+            # Check if bottom of trial contacts top of other
+            # Contact tolerance: within 0.01m (1cm)
+            bottom_contact = abs(trial.y - (other.y + other.placed_h)) <= 0.01
+            
+            if not bottom_contact:
+                continue
+            
+            # Check if footprints overlap in XZ plane (width and depth)
             x_overlap = not (
                 (trial.x + trial.placed_d <= other.x + 0.001) or
                 (trial.x >= other.x + other.placed_d - 0.001)
-            )
-            y_overlap = not (
-                (trial.y + trial.placed_h <= other.y + 0.001) or
-                (trial.y >= other.y + other.placed_h - 0.001)
             )
             z_overlap = not (
                 (trial.z + trial.placed_w <= other.z + 0.001) or
                 (trial.z >= other.z + other.placed_w - 0.001)
             )
             
+            if x_overlap and z_overlap:
+                # Found valid support
+                return False
+        
+        # No support found - load is floating
+        return True
+
+    def _has_collision(self, trial: LoadPlacement, existing: List[LoadPlacement]) -> bool:
+        """
+        3D AABB collision detection with strict separation.
+        Loads must be strictly separated (no touching), with 1mm minimum gap.
+        """
+        min_gap = 0.001  # 1mm minimum gap between loads
+        
+        for other in existing:
+            # Check if they overlap or touch on all 3 dimensions
+            # X-axis overlap (using placed_d = depth)
+            x_overlap = not (
+                (trial.x + trial.placed_d + min_gap <= other.x) or
+                (trial.x >= other.x + other.placed_d + min_gap)
+            )
+            # Y-axis overlap (using placed_h = height)
+            y_overlap = not (
+                (trial.y + trial.placed_h + min_gap <= other.y) or
+                (trial.y >= other.y + other.placed_h + min_gap)
+            )
+            # Z-axis overlap (using placed_w = width)
+            z_overlap = not (
+                (trial.z + trial.placed_w + min_gap <= other.z) or
+                (trial.z >= other.z + other.placed_w + min_gap)
+            )
+            
+            # Collision if all three axes overlap
             if x_overlap and y_overlap and z_overlap:
                 return True
         return False

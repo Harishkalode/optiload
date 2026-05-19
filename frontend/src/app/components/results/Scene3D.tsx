@@ -189,6 +189,27 @@ class EnhancedOrbitControls {
 
 /* Vehicle and load models built by VehicleModelBuilder.ts and LoadModelBuilder.ts */
 
+/** Build the appropriate 3D vehicle model for the given type. */
+function buildVehicleModel(
+  vehicleType: string,
+  carL: number,
+  carW: number,
+  carH: number,
+  platH: number,
+  isDark: boolean,
+): THREE.Group {
+  switch (vehicleType) {
+    case 'boxcar':
+      return createBoxcarModel(carL, carW, carH, platH, isDark);
+    case 'gondola':
+      return createGondolaModel(carL, carW, carH, platH, isDark);
+    case 'reefer':
+      return createReeferModel(carL, carW, carH, platH, isDark);
+    default:
+      return createFlatcarModel(carL, carW, platH);
+  }
+}
+
 export function Scene3D({
   loads,
   selectedLoad,
@@ -225,6 +246,7 @@ export function Scene3D({
   const controlsRef = useRef<EnhancedOrbitControls | null>(null);
   const loadMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const securementsGroupRef = useRef<THREE.Group | null>(null);
+  const vehicleModelRef = useRef<THREE.Group | null>(null);
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const animationFrameRef = useRef<number>();
   const dragPlaneRef = useRef<THREE.Plane | null>(null);
@@ -305,22 +327,9 @@ export function Scene3D({
     scene.add(gridHelper);
 
     // ── Vehicle model (realistic 3D structure) ──
-    let vehicleModel: THREE.Group;
-    switch (vehicleType) {
-      case 'boxcar':
-        vehicleModel = createBoxcarModel(carL, carW, carH, platH, isDark);
-        break;
-      case 'gondola':
-        vehicleModel = createGondolaModel(carL, carW, carH, platH, isDark);
-        break;
-      case 'reefer':
-        vehicleModel = createReeferModel(carL, carW, carH, platH, isDark);
-        break;
-      default:
-        vehicleModel = createFlatcarModel(carL, carW, platH);
-        break;
-    }
-    scene.add(vehicleModel);
+    const newModel = buildVehicleModel(vehicleType, carL, carW, carH, platH, isDark);
+    vehicleModelRef.current = newModel;
+    scene.add(newModel);
 
     // Securements rendering
     if (securements && securements.length > 0) {
@@ -739,6 +748,22 @@ export function Scene3D({
       scene.add(securementGroup);
     }
   }, [securements, isInitialized]);
+
+  // Rebuild vehicle model when type or dimensions change
+  useEffect(() => {
+    if (!sceneRef.current || !isInitialized) return;
+    const scene = sceneRef.current;
+
+    // Remove old vehicle model
+    if (vehicleModelRef.current) {
+      scene.remove(vehicleModelRef.current);
+    }
+
+    // Build and add new vehicle model
+    const newModel = buildVehicleModel(vehicleType, carL, carW, carH, platH, isDark);
+    vehicleModelRef.current = newModel;
+    scene.add(newModel);
+  }, [vehicleType, carL, carW, carH, platH, isDark, isInitialized]);
 
   // Hover detection for tooltips
   useEffect(() => {

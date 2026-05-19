@@ -72,23 +72,32 @@ class ConstraintValidator:
         return violations, warnings
     
     def _validate_bounds(self, placements: List[LoadPlacement]) -> List[AARViolation]:
-        """Check all loads are within vehicle boundaries."""
+        """Check all loads are within vehicle boundaries.
+        
+        Coordinate mapping:
+        - X-axis: 0 to length_m (front to back), dimension = placed_d
+        - Y-axis: 0 to height_m (floor to ceiling), dimension = placed_h
+        - Z-axis: 0 to width_m (left to right), dimension = placed_w
+        """
         issues = []
         for p in placements:
-            if p.x < 0 or p.x + p.placed_w > self.vehicle.length_m:
+            # X-axis (longitudinal / depth)
+            if p.x < 0 or p.x + p.placed_d > self.vehicle.length_m:
                 issues.append(AARViolation(
                     rule="bounds_length",
-                    message=f"Load {p.load_id}: X position {p.x:.2f}m + width {p.placed_w:.2f}m exceeds vehicle length {self.vehicle.length_m:.2f}m",
+                    message=f"Load {p.load_id}: X position {p.x:.2f}m + depth {p.placed_d:.2f}m exceeds vehicle length {self.vehicle.length_m:.2f}m",
                     severity="error",
-                    details={"x": p.x, "w": p.placed_w, "limit": self.vehicle.length_m}
+                    details={"x": p.x, "d": p.placed_d, "limit": self.vehicle.length_m}
                 ))
-            if p.z < 0 or p.z + p.placed_d > self.vehicle.width_m:
+            # Z-axis (lateral / width)
+            if p.z < 0 or p.z + p.placed_w > self.vehicle.width_m:
                 issues.append(AARViolation(
                     rule="bounds_width",
-                    message=f"Load {p.load_id}: Z position {p.z:.2f}m + depth {p.placed_d:.2f}m exceeds vehicle width {self.vehicle.width_m:.2f}m",
+                    message=f"Load {p.load_id}: Z position {p.z:.2f}m + width {p.placed_w:.2f}m exceeds vehicle width {self.vehicle.width_m:.2f}m",
                     severity="error",
-                    details={"z": p.z, "d": p.placed_d, "limit": self.vehicle.width_m}
+                    details={"z": p.z, "w": p.placed_w, "limit": self.vehicle.width_m}
                 ))
+            # Y-axis (vertical / height)
             if p.y < 0 or p.y + p.placed_h > self.vehicle.height_m:
                 issues.append(AARViolation(
                     rule="bounds_height",
@@ -99,16 +108,25 @@ class ConstraintValidator:
         return issues
     
     def _validate_collisions(self, placements: List[LoadPlacement]) -> List[AARViolation]:
-        """Check no two loads overlap."""
+        """Check no two loads overlap.
+        
+        AABB (Axis-Aligned Bounding Box) collision test:
+        Two boxes overlap if they overlap on ALL three axes.
+        """
         issues = []
-        eps = 0.001
+        eps = 0.001  # 1mm tolerance for floating point
         for i, p1 in enumerate(placements):
             for p2 in placements[i+1:]:
-                # AABB collision check
-                if (p1.x + p1.placed_w > p2.x + eps and p2.x + p2.placed_w > p1.x + eps and
-                    p1.y + p1.placed_h > p2.y + eps and p2.y + p2.placed_h > p1.y + eps and
-                    p1.z + p1.placed_d > p2.z + eps and p2.z + p2.placed_d > p1.z + eps):
-                    
+                # Check overlap on all axes
+                # X-axis: uses placed_d (depth)
+                x_overlap = p1.x + p1.placed_d > p2.x + eps and p2.x + p2.placed_d > p1.x + eps
+                # Y-axis: uses placed_h (height)
+                y_overlap = p1.y + p1.placed_h > p2.y + eps and p2.y + p2.placed_h > p1.y + eps
+                # Z-axis: uses placed_w (width)
+                z_overlap = p1.z + p1.placed_w > p2.z + eps and p2.z + p2.placed_w > p1.z + eps
+                
+                # Collision if all three axes overlap
+                if x_overlap and y_overlap and z_overlap:
                     issues.append(AARViolation(
                         rule="collision_overlap",
                         message=f"Load {p1.load_id} and Load {p2.load_id} overlap in 3D space",
@@ -125,13 +143,34 @@ class ConstraintValidator:
         issues = []
         for p in placements:
             # Floating load check (must have contact)
-            if p.y > 0.001:
-                has_support = any(
-                    abs(p.y - (other.y + other.placed_h)) < 0.01 and
-                    not (p.x + p.placed_w <= other.x or other.x + other.placed_w <= p.x or
-                         p.z + p.placed_d <= other.z or other.z + other.placed_d <= p.z)
-                    for other in placements if other.load_id != p.load_id
-                )
+            if p.y > 0.001:  # Essentially above floor
+                has_support = False
+                
+                # Check if any load supports this one
+                for other in placements:
+                    if other.load_id == p.load_id:
+                        continue
+                    
+                    # Check if bottom of p is within 1cm of top of other
+                    bottom_contact = abs(p.y - (other.y + other.placed_h)) <= 0.01
+                    
+                    if not bottom_contact:
+                        continue
+                    
+                    # Check if footprints overlap in XZ plane
+                    x_overlap = not (
+                        (p.x + p.placed_d <= other.x + 0.001) or
+                        (p.x >= other.x + other.placed_d - 0.001)
+                    )
+                    z_overlap = not (
+                        (p.z + p.placed_w <= other.z + 0.001) or
+                        (p.z >= other.z + other.placed_w - 0.001)
+                    )
+                    
+                    if x_overlap and z_overlap:
+                        has_support = True
+                        break
+                
                 if not has_support:
                     issues.append(AARViolation(
                         rule="physics_floating",

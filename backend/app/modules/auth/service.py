@@ -378,14 +378,11 @@ class AuthService:
             db.add(user)
             db.flush()
 
-            db.add(
-                Vehicle(
-                    organization_id=organization.id,
-                    type=VehicleType.container,
-                    dimensions={"length": 1200, "width": 250, "height": 260, "max_weight": 24000},
-                    capacity=24000,
-                )
-            )
+            # Seed default AAR-standard vehicles for the new organization
+            from app.modules.vehicles.service import VehicleService
+            from app.modules.vehicles.repository import VehicleRepository
+            VehicleService(VehicleRepository(db)).bootstrap_default_vehicles(organization.id)
+
             db.add(
                 Load(
                     organization_id=organization.id,
