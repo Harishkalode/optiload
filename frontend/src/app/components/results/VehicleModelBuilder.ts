@@ -34,6 +34,19 @@ function wheelMaterial(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color: '#2d3748', roughness: 0.4, metalness: 0.9 });
 }
 
+/** Ghost wall material — semi-transparent so loads are visible from any angle */
+function ghostWallMaterial(isDark: boolean, baseColor?: string): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: baseColor ?? (isDark ? '#3d4a5c' : '#5a6577'),
+    roughness: 0.4,
+    metalness: 0.3,
+    transparent: true,
+    opacity: 0.25,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+}
+
 // ── Bogie (wheel truck) builder ─────────────────────────────────────────────
 
 /**
@@ -277,7 +290,7 @@ export function createFlatcarModel(carL: number, carW: number, platH: number): T
 export function createBoxcarModel(carL: number, carW: number, carH: number, platH: number, isDark: boolean): THREE.Group {
   const group = new THREE.Group();
   const wallH = carH - platH;
-  const wallMat = steelMaterial(isDark ? '#3d4a5c' : '#5a6577');
+  const ghostMat = ghostWallMaterial(isDark);
   const roofMat = steelMaterial(isDark ? '#2d3748' : '#4a5568');
   const floorMat = woodMaterial();
   
@@ -288,18 +301,17 @@ export function createBoxcarModel(carL: number, carW: number, carH: number, plat
   floor.receiveShadow = true;
   group.add(floor);
   
-  // ── Side walls ──
+  // ── Side walls (ghost) ──
   const sideWallGeo = new THREE.BoxGeometry(carL, wallH, 0.08);
   
   // Left wall (with door opening)
   const leftWallGroup = new THREE.Group();
-  // Wall sections around door
   const doorW = carL * 0.45;
   const doorX = carL * 0.25;
   // Front section (before door)
   if (doorX > 0.1) {
     const frontGeo = new THREE.BoxGeometry(doorX, wallH, 0.08);
-    const frontWall = new THREE.Mesh(frontGeo, wallMat);
+    const frontWall = new THREE.Mesh(frontGeo, ghostMat);
     frontWall.position.set(doorX / 2, platH + wallH / 2, carW / 2);
     frontWall.castShadow = true;
     frontWall.receiveShadow = true;
@@ -310,7 +322,7 @@ export function createBoxcarModel(carL: number, carW: number, carH: number, plat
   const rearLen = carL - rearStart;
   if (rearLen > 0.1) {
     const rearGeo = new THREE.BoxGeometry(rearLen, wallH, 0.08);
-    const rearWall = new THREE.Mesh(rearGeo, wallMat);
+    const rearWall = new THREE.Mesh(rearGeo, ghostMat);
     rearWall.position.set(rearStart + rearLen / 2, platH + wallH / 2, carW / 2);
     rearWall.castShadow = true;
     rearWall.receiveShadow = true;
@@ -319,35 +331,35 @@ export function createBoxcarModel(carL: number, carW: number, carH: number, plat
   // Top section above door
   const doorH = wallH * 0.85;
   const topGeo = new THREE.BoxGeometry(doorW, wallH - doorH, 0.08);
-  const topWall = new THREE.Mesh(topGeo, wallMat);
+  const topWall = new THREE.Mesh(topGeo, ghostMat);
   topWall.position.set(doorX + doorW / 2, platH + doorH + (wallH - doorH) / 2, carW / 2);
   topWall.castShadow = true;
   leftWallGroup.add(topWall);
   
   group.add(leftWallGroup);
   
-  // Right wall (solid)
-  const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
+  // Right wall (ghost, solid panel)
+  const rightWall = new THREE.Mesh(sideWallGeo, ghostMat);
   rightWall.position.set(carL / 2, platH + wallH / 2, -carW / 2);
   rightWall.castShadow = true;
   rightWall.receiveShadow = true;
   group.add(rightWall);
   
-  // ── End walls ──
+  // ── End walls (ghost) ──
   const endWallGeo = new THREE.BoxGeometry(0.08, wallH, carW);
-  const frontWall = new THREE.Mesh(endWallGeo, wallMat);
+  const frontWall = new THREE.Mesh(endWallGeo, ghostMat);
   frontWall.position.set(carL, platH + wallH / 2, 0);
   frontWall.castShadow = true;
   frontWall.receiveShadow = true;
   group.add(frontWall);
   
-  const backWall = new THREE.Mesh(endWallGeo, wallMat);
+  const backWall = new THREE.Mesh(endWallGeo, ghostMat);
   backWall.position.set(0, platH + wallH / 2, 0);
   backWall.castShadow = true;
   backWall.receiveShadow = true;
   group.add(backWall);
   
-  // ── Roof ──
+  // ── Roof (opaque) ──
   const roofGeo = new THREE.BoxGeometry(carL, 0.06, carW);
   const roof = new THREE.Mesh(roofGeo, roofMat);
   roof.position.set(carL / 2, platH + wallH, 0);
@@ -542,11 +554,7 @@ export function createGondolaModel(carL: number, carW: number, carH: number, pla
 export function createReeferModel(carL: number, carW: number, carH: number, platH: number, isDark: boolean): THREE.Group {
   const group = new THREE.Group();
   const wallH = carH - platH;
-  const wallMat = new THREE.MeshStandardMaterial({
-    color: isDark ? '#e2e8f0' : '#f8fafc',
-    roughness: 0.3,
-    metalness: 0.1,
-  });
+  const ghostMat = ghostWallMaterial(isDark, isDark ? '#cbd5e1' : '#f1f5f9');
 
   // ── Floor ──
   const floorGeo = new THREE.BoxGeometry(carL - 0.2, 0.12, carW - 0.2);
@@ -555,10 +563,10 @@ export function createReeferModel(carL: number, carW: number, carH: number, plat
   floor.receiveShadow = true;
   group.add(floor);
 
-  // ── Walls (all four sides, fully enclosed) ──
+  // ── Walls (ghost) ──
   const sideGeo = new THREE.BoxGeometry(carL - 0.2, wallH, 0.1);
   [-1, 1].forEach(side => {
-    const wall = new THREE.Mesh(sideGeo, wallMat);
+    const wall = new THREE.Mesh(sideGeo, ghostMat);
     wall.position.set(carL / 2, platH + wallH / 2, side * (carW / 2 - 0.05));
     wall.castShadow = true;
     wall.receiveShadow = true;
@@ -567,14 +575,14 @@ export function createReeferModel(carL: number, carW: number, carH: number, plat
 
   const endGeo = new THREE.BoxGeometry(0.1, wallH, carW - 0.2);
   [0.1, carL - 0.1].forEach(x => {
-    const wall = new THREE.Mesh(endGeo, wallMat);
+    const wall = new THREE.Mesh(endGeo, ghostMat);
     wall.position.set(x, platH + wallH / 2, 0);
     wall.castShadow = true;
     wall.receiveShadow = true;
     group.add(wall);
   });
 
-  // ── Roof ──
+  // ── Roof (opaque) ──
   const roofGeo = new THREE.BoxGeometry(carL - 0.1, 0.08, carW - 0.1);
   const roofMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.4, metalness: 0.2 });
   const roof = new THREE.Mesh(roofGeo, roofMat);
