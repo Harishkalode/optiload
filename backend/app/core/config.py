@@ -39,6 +39,9 @@ if _root_env_file.exists():
 _app_env = os.environ.get("APP_ENV", _app_env)
 _env_file_name = ".env.production" if _app_env in ("production", "prod") else ".env.development"
 _env_file_path = str(_project_root / "env" / _env_file_name)
+# Soft fallback — use None if file doesn't exist (Docker/Railway injects env vars directly)
+if not Path(_env_file_path).exists():
+    _env_file_path = None
 
 
 class Settings(BaseSettings):
