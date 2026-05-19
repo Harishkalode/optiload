@@ -44,10 +44,15 @@ class PhysicsEngine:
         Conversion: above_deck = above_rail - platform_height
         """
         tare_weight_kg = vehicle.tare_weight_kg or 0.0
-        empty_cg_height_m = vehicle.empty_cg_height_m or 0.75  # above rail
+        empty_cg_height_m = vehicle.empty_cg_height_m  # meters above rail
+        if empty_cg_height_m is None:
+            # fallback from inches if available
+            empty_cg_height_in = getattr(vehicle, "empty_cg_height_in", None)
+            empty_cg_height_m = (empty_cg_height_in * 0.0254) if empty_cg_height_in else 0.75
         
         # Convert tare CoG from "above rail" to "above deck" for calculation
-        tare_cg_above_deck = empty_cg_height_m - PLATFORM_HEIGHT_M
+        plat_h = getattr(vehicle, "platform_height_m", None) or PLATFORM_HEIGHT_M
+        tare_cg_above_deck = empty_cg_height_m - plat_h
         
         total_load_weight = 0.0
         for p in placements:

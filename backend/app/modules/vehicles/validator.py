@@ -1,77 +1,7 @@
 from pydantic import BaseModel, Field, model_validator
 
-# AAR Standard Vehicle Dimensions (Phase 0.2)
-AAR_VEHICLES = {
-    "boxcar": {
-        "length_m": 40.67,  # 133'6"
-        "width_m": 2.74,    # 9'0"
-        "height_m": 2.74,   # 9'0" interior
-        "capacity_kg": 60000,
-        "tare_weight_kg": 30400,
-        "empty_cg_height_m": 1.60,
-        "truck_center_front_m": 3.0,
-        "truck_center_rear_m": 35.0,
-        "axle_count": 8,
-        "per_axle_limit_kg": 22500,
-        "platform_height_m": 1.50,
-        "doorway_width_m": 2.0,
-        "doorway_height_m": 2.44,
-    },
-    "flatcar": {
-        "length_m": 40.67,  # 133'6"
-        "width_m": 2.74,    # 9'0"
-        "height_m": 3.0,    # No sides, open deck
-        "capacity_kg": 80000,
-        "tare_weight_kg": 20400,
-        "empty_cg_height_m": 0.75,  # Low center of gravity (deck only)
-        "truck_center_front_m": 3.0,
-        "truck_center_rear_m": 35.0,
-        "axle_count": 8,
-        "per_axle_limit_kg": 22500,
-        "platform_height_m": 1.50,
-    },
-    "gondola": {
-        "length_m": 38.0,   # 125'
-        "width_m": 2.93,    # 9'7"
-        "height_m": 1.98,   # 6'6" interior
-        "capacity_kg": 70000,
-        "tare_weight_kg": 22700,
-        "empty_cg_height_m": 1.20,
-        "truck_center_front_m": 3.0,
-        "truck_center_rear_m": 32.0,
-        "axle_count": 8,
-        "per_axle_limit_kg": 22500,
-        "platform_height_m": 1.50,
-    },
-    "reefer": {
-        "length_m": 40.67,  # 133'6"
-        "width_m": 2.59,    # 8'6" interior (narrower for insulation)
-        "height_m": 2.44,   # 8'0"
-        "capacity_kg": 55000,
-        "tare_weight_kg": 35000,  # Heavier due to insulation
-        "empty_cg_height_m": 1.60,
-        "truck_center_front_m": 3.0,
-        "truck_center_rear_m": 35.0,
-        "axle_count": 8,
-        "per_axle_limit_kg": 22500,
-        "platform_height_m": 1.50,
-        "doorway_width_m": 2.0,
-        "doorway_height_m": 2.44,
-    },
-    "container": {
-        "length_m": 12.0,   # 40' container
-        "width_m": 2.35,    # 7'8"
-        "height_m": 2.39,   # 7'10"
-        "capacity_kg": 30000,
-        "tare_weight_kg": 4000,
-        "empty_cg_height_m": 1.20,
-        "truck_center_front_m": 1.5,
-        "truck_center_rear_m": 10.5,
-        "axle_count": 2,
-        "per_axle_limit_kg": 22500,
-        "platform_height_m": 1.50,
-    },
-}
+# Use the authoritative AAR_VEHICLES from service
+from app.modules.vehicles.service import AAR_VEHICLES
 
 
 class VehicleBaseRequest(BaseModel):
