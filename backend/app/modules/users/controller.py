@@ -41,6 +41,10 @@ class MfaToggleRequest(BaseModel):
     enabled: bool
 
 
+class DemoModeToggleRequest(BaseModel):
+    enabled: bool
+
+
 @router.get("/me")
 def get_my_profile(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return success_response({
@@ -50,44 +54,23 @@ def get_my_profile(db: Session = Depends(get_db), current_user=Depends(get_curre
         "role_id": current_user.role_id,
         "status": current_user.status.value,
         "mfa_enabled": current_user.mfa_enabled,
+        "demo_mode": current_user.demo_mode,
         "last_login": current_user.last_login,
         "created_at": current_user.created_at,
         "organization_id": current_user.organization_id,
     })
 
 
-@router.put("/me")
-def update_my_profile(
-        payload: ProfileUpdateRequest,
+@router.post("/me/demo-mode")
+def toggle_demo_mode(
+        payload: DemoModeToggleRequest,
         db: Session = Depends(get_db),
         current_user=Depends(get_current_user),
 ):
-    updates = {}
-    if payload.name is not None:
-        updates["name"] = payload.name
-    if not updates:
-        raise AppError("NO_UPDATES", "No fields to update")
-    updated = _service(db).update_user(current_user.id, updates, actor_id=current_user.id,
-                                       actor_org_id=current_user.organization_id,
-                                       ip_address="self-service")
-    return success_response({"id": updated.id, "name": updated.name})
-
-
-@router.post("/me/password")
-def change_my_password(
-        payload: PasswordChangeRequest,
-        db: Session = Depends(get_db),
-        current_user=Depends(get_current_user),
-):
-    repo = UserRepository(db)
-    if not pwd_context.verify(payload.current_password, current_user.password_hash):
-        raise AppError("INVALID_PASSWORD", "Current password is incorrect", status_code=400)
-    if len(payload.new_password) < 8:
-        raise AppError("WEAK_PASSWORD", "New password must be at least 8 characters", status_code=400)
-    _service(db).update_user(current_user.id, {"password_hash": pwd_context.hash(payload.new_password)},
+    _service(db).update_user(current_user.id, {"demo_mode": payload.enabled},
                              actor_id=current_user.id, actor_org_id=current_user.organization_id,
                              ip_address="self-service")
-    return success_response({"updated": True})
+    return success_response({"demo_mode": payload.enabled})
 
 
 @router.post("/me/mfa")

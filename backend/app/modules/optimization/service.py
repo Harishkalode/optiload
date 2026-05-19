@@ -23,7 +23,7 @@ class OptimizationService:
         self.load_repository = load_repository
 
     def run(self, organization_id: int, payload: dict, *, actor_user_id: int,
-            demo_header: str | None = None) -> Optimization:
+            demo_header: str | None = None, user_demo_mode: bool = False) -> Optimization:
         print(f"\n[SERVICE] Optimization run requested by user {actor_user_id}, org {organization_id}")
         print(f"[SERVICE] Payload: vehicle_id={payload['vehicle_id']}, loads={payload.get('loads', [])}")
 
@@ -111,7 +111,8 @@ class OptimizationService:
         load_meta: dict[int, dict] = {}
 
         # ─── DEMO MODE ─────────────────────────────────────────────────
-        if is_demo_mode_enabled(demo_header):
+        demo_enabled = is_demo_mode_enabled(demo_header) or user_demo_mode
+        if demo_enabled:
             railcar_type = detect_railcar_type(vehicle_spec)
             demo_placements = get_demo_placements(railcar_type)
             result_json = generate_demo_result_json(

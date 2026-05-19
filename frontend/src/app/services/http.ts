@@ -28,11 +28,12 @@ async function refreshSession(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     try {
+      const storedRefresh = localStorage.getItem('optiload_refresh_token');
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ refresh_token: storedRefresh || undefined }),
       });
       const payload = (await response.json()) as ApiEnvelope<{
         access_token?: string;
@@ -44,6 +45,10 @@ async function refreshSession(): Promise<boolean> {
       const access = payload.data.access_token;
       if (access) {
         localStorage.setItem('optiload_access_token', access);
+      }
+      const refresh = payload.data.refresh_token;
+      if (refresh) {
+        localStorage.setItem('optiload_refresh_token', refresh);
       }
       return true;
     } catch {

@@ -24,6 +24,9 @@ export default defineConfig({
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
+  // Load .env.development for dev, .env.production for build
+  envDir: '../env',
+
   server: {
     proxy: {
       '/api': {

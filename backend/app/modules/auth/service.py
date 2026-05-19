@@ -118,6 +118,7 @@ class AuthService:
                 "email": user.email,
                 "role": self._role_label(user.role.name if user.role else None),
                 "organization_id": user.organization_id,
+                "demo_mode": user.demo_mode,
             },
         }
 
@@ -159,6 +160,7 @@ class AuthService:
                 "email": user.email,
                 "role": self._role_label(user.role.name if user.role else None),
                 "organization_id": user.organization_id,
+                "demo_mode": user.demo_mode,
             },
         }
 
@@ -229,6 +231,7 @@ class AuthService:
             "organization_id": user.organization_id,
             "role": self._role_label(user.role.name if user.role else None),
             "mfa_enabled": user.mfa_enabled,
+            "demo_mode": user.demo_mode,
         }
 
     def generate_mfa_secret(self, user: User) -> str:
@@ -427,8 +430,9 @@ class AuthService:
                 "id": user.id,
                 "name": user.name,
                 "email": user.email,
-                "role": self._role_label(user.role.name if user.role else "admin"),
+                "role": self._role_label(user.role.name if user.role else None),
                 "organization_id": user.organization_id,
+                "demo_mode": user.demo_mode,
             },
         }
 

@@ -31,6 +31,7 @@ def _row_x_50ft(row_idx: int) -> float:
 
 
 def _row_x_60ft(row_idx: int) -> float:
+    """Legacy hex-pack formula — replaced by explicit coordinates in generate_60ft_demo_placements()."""
     R = inches_to_meters(25)
     SPACING = inches_to_meters(43.3)
     FRONT_MARGIN = inches_to_meters(32.7)
@@ -119,46 +120,67 @@ def generate_50ft_demo_placements() -> List[LoadPlacement]:
     return _generate_placements(rows, y_cyan, y_yellow, z1, z2, _row_x_50ft)
 
 
-# ─── 60ft: 64 rolls (44 cyan 2-high + 20 yellow 3/2-high) ────────────
+# ─── 60ft: 64 rolls (32 cyan 2-high + 32 yellow 3/2-high) — coordinate-driven ─
 
 def generate_60ft_demo_placements() -> List[LoadPlacement]:
     """
     60ft HC: IL=729", IW=114", IH=156", FH=44"
 
-    Layout:
-      Row 0-1:   Yellow (3-high, both cols)   12 rolls  (4 spots)
-      Row 2-7:   Cyan   (2-high, both cols)   24 rolls  (12 spots)
-      [spacer 7.47"]
-      Row 8-12:  Cyan   (2-high, both cols)   20 rolls  (10 spots)
-      Row 13:    Yellow (3-high, both cols)    6 rolls  (2 spots)
-      Row 14:    Yellow (2-high, left only)    2 rolls  (1 spot)
-                                Total: 29 spots, 64 rolls
-
-    Hex-packed @ 43.3" row spacing.
-    Z columns: 27.5", 86.5" from left wall.
+    Layout from reference coordinates (28 floor spots, 64 total rolls).
+    Coordinate mapping: our_z = their_Y + 57 (centerline offset).
+    Color by base Z: 22.875" = yellow (load_id=2), 31.75" = cyan (load_id=1).
     """
-    y_cyan = [inches_to_meters(31.75), inches_to_meters(95.25)]
-    y_yellow = [inches_to_meters(22.875), inches_to_meters(68.625), inches_to_meters(114.375)]
-    z1, z2 = inches_to_meters(27.5), inches_to_meters(86.5)
+    D = inches_to_meters(50)
+    W_CYAN = inches_to_meters(63.5)
+    W_YELLOW = inches_to_meters(45.75)
 
+    # Layer heights: (color, n_layers) → [y_centers]
+    y_heights = {
+        (1, 2): [inches_to_meters(31.75), inches_to_meters(95.25)],
+        (2, 2): [inches_to_meters(22.875), inches_to_meters(77.5)],
+        (2, 3): [inches_to_meters(22.875), inches_to_meters(68.625), inches_to_meters(123.25)],
+    }
+
+    # Row specs: (x_pos_inches, [(y_offset, n_layers, color), ...])
+    # X positions averaged where slight variations exist (e.g., 371.57/373.64 → 372.60)
     rows = [
-        (0,  [(2,3), (2,3)]),
-        (1,  [(2,3), (2,3)]),
-        (2,  [(1,2), (1,2)]),
-        (3,  [(1,2), (1,2)]),
-        (4,  [(1,2), (1,2)]),
-        (5,  [(1,2), (1,2)]),
-        (6,  [(1,2), (1,2)]),
-        (7,  [(1,2), (1,2)]),
-        (8,  [(1,2), (1,2)]),
-        (9,  [(1,2), (1,2)]),
-        (10, [(1,2), (1,2)]),
-        (11, [(1,2), (1,2)]),
-        (12, [(1,2), (1,2)]),
-        (13, [(2,3), (2,3)]),
-        (14, [(2,2), (2,0)]),
+        (25.00,   [(-32, 3, 2), (32, 3, 2)]),
+        (63.42,   [(0, 3, 2)]),
+        (101.84,  [(-32, 3, 2), (32, 3, 2)]),
+        (140.26,  [(0, 2, 1)]),
+        (178.67,  [(-32, 2, 1), (32, 2, 1)]),
+        (217.09,  [(0, 2, 1)]),
+        (255.51,  [(-32, 2, 1), (32, 2, 1)]),
+        (315.10,  [(-25, 2, 2), (25, 2, 2)]),
+        (372.60,  [(-25, 2, 2), (25, 2, 2)]),
+        (422.60,  [(-25, 2, 1), (25, 2, 1)]),
+        (482.20,  [(-32, 2, 1), (32, 2, 1)]),
+        (520.61,  [(-1.2, 2, 1)]),
+        (559.00,  [(-32, 2, 1), (32, 2, 1)]),
+        (608.00,  [(-18, 2, 1), (32, 2, 1)]),
+        (656.00,  [(-32, 3, 2), (18, 2, 1)]),
+        (704.00,  [(-18, 3, 2), (32, 3, 2)]),
     ]
-    return _generate_placements(rows, y_cyan, y_yellow, z1, z2, _row_x_60ft)
+
+    placements = []
+    for (x_in, col_specs) in rows:
+        x_m = inches_to_meters(x_in)
+        for (y_offset, n_layers, color) in col_specs:
+            z_m = inches_to_meters(y_offset + 57)  # Y=0 → z=57" (centerline)
+            heights = y_heights[(color, n_layers)]
+            w = W_CYAN if color == 1 else W_YELLOW
+            for layer in range(n_layers):
+                y_m = heights[layer]
+                placements.append(LoadPlacement(
+                    load_id=color, x=x_m, y=y_m, z=z_m,
+                    orientation="vertical", rotation_y=0.0,
+                    placed_w=D, placed_h=w, placed_d=D,
+                    cog_x=x_m, cog_y=y_m, cog_z=z_m,
+                    contact_type="floor" if layer == 0 else "load",
+                    contact_surface_area=D * D,
+                    is_stable=True,
+                ))
+    return placements
 
 
 # ─── TEMPLATE METADATA ────────────────────────────────────────────────
@@ -245,7 +267,7 @@ def get_demo_template_60ft() -> Dict:
                 "diameter_m": 1.27,
                 "width_m": 1.6129,
                 "weight_kg": 1452.73,
-                "quantity": 44,
+                "quantity": 32,
                 "color": "cyan",
                 "placements": [p for p in placements if p.load_id == 1],
             },
@@ -256,24 +278,54 @@ def get_demo_template_60ft() -> Dict:
                 "diameter_m": 1.27,
                 "width_m": 1.1615,
                 "weight_kg": 1011.73,
-                "quantity": 20,
+                "quantity": 32,
                 "color": "yellow",
                 "placements": [p for p in placements if p.load_id == 2],
             },
         ],
         "securements": [
             {
-                "type": "block",
-                "x_m": 9.0, "y_m": 1.118, "z_m": 1.448,
-                "dimensions_m": {"length": 0.4, "width": 2.896, "height": 0.3},
-            }
+                "type": "airbag",
+                "x_m": inches_to_meters(343.34),
+                "y_m": inches_to_meters(54.625),
+                "z_m": inches_to_meters(57.0),
+                "dimensions_m": {"length": 0.6, "width": 2.896, "height": 0.4},
+            },
+            {
+                "type": "spacer",
+                "x_m": inches_to_meters(285.31),
+                "y_m": inches_to_meters(54.625),
+                "z_m": inches_to_meters(85.5),
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
+            {
+                "type": "spacer",
+                "x_m": inches_to_meters(285.31),
+                "y_m": inches_to_meters(54.625),
+                "z_m": inches_to_meters(28.5),
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
+            {
+                "type": "spacer",
+                "x_m": inches_to_meters(453.43),
+                "y_m": inches_to_meters(63.5),
+                "z_m": inches_to_meters(85.5),
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
+            {
+                "type": "spacer",
+                "x_m": inches_to_meters(451.37),
+                "y_m": inches_to_meters(63.5),
+                "z_m": inches_to_meters(28.5),
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
         ],
         "metrics": {
-            "floor_spots": 29,
+            "floor_spots": 28,
             "cg_height_in": 93.88,
-            "max_void_space_in": 7.47,
-            "num_risers": 2, "num_spacers": 1,
-            "total_weight_kg": 84236,
+            "num_risers": 2,
+            "num_spacers": 4,
+            "total_weight_kg": 78863,
             "total_volume_m3": 119.6,
         },
     }
@@ -282,5 +334,5 @@ def get_demo_template_60ft() -> Dict:
 def get_demo_template(railcar_type: str) -> Dict:
     if "60" in str(railcar_type).lower():
         return get_demo_template_60ft()
-        return get_demo_template_50ft()
+    return get_demo_template_50ft()
 

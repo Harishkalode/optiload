@@ -5,7 +5,9 @@ all security, performance, and behavioral settings automatically.
 Explicit env vars override auto-defaults.
 """
 
+import os
 from enum import Enum
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -20,16 +22,34 @@ class AppEnvironment(str, Enum):
 
 _DEFAULT_JWT_SECRET = "dev-secret-change-in-production-32chars-minimum"
 
+# ─── ENVIRONMENT FILE RESOLUTION ──────────────────────────
+# Determine which env file to load based on APP_ENV from root .env.
+# User edits root .env → APP_ENV=local or APP_ENV=production.
+_project_root = Path(__file__).parent.parent.parent.parent  # backend/app/core/ → project root
+_app_env = "local"
+
+_root_env_file = _project_root / ".env"
+if _root_env_file.exists():
+    with open(_root_env_file) as _f:
+        for _line in _f:
+            if _line.strip().startswith("APP_ENV="):
+                _app_env = _line.strip().split("=", 1)[1].strip().lower()
+                break
+
+_app_env = os.environ.get("APP_ENV", _app_env)
+_env_file_name = ".env.production" if _app_env in ("production", "prod") else ".env.development"
+_env_file_path = str(_project_root / "env" / _env_file_name)
+
 
 class Settings(BaseSettings):
     # ─── CORE ────────────────────────────────────────────────────────
     app_name: str = "OptiLoad"
     api_prefix: str = "/api/v1"
-    environment: str = "production"
+    environment: str = "local"
 
     # ─── DATABASE ────────────────────────────────────────────────────
-    # database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/optiload"
-    database_url: str = "postgresql://postgres:CpLTgjFMNZaAFXGvgCxjravWWjNTkZIF@postgres.railway.internal:5432/railway"
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/optiload"
+    # database_url: str = "postgresql://postgres:CpLTgjFMNZaAFXGvgCxjravWWjNTkZIF@postgres.railway.internal:5432/railway"
     database_read_url: str | None = None
 
     db_pool_size: int | None = None
@@ -66,10 +86,10 @@ class Settings(BaseSettings):
     max_request_body_bytes: int | None = None
 
     # ─── CORS / HOSTS ────────────────────────────────────────────────
-    # cors_allowed_origins: list[str] = ["http://localhost:5173"]
-    cors_allowed_origins: list[str] = ["https://optiload-fe.up.railway.app"]
-    # trusted_hosts: list[str] = ["localhost", "127.0.0.1"]
-    trusted_hosts: list[str] = ["optiload-be.up.railway.app", "localhost", "127.0.0.1"]
+    cors_allowed_origins: list[str] = ["http://localhost:5173"]
+    # cors_allowed_origins: list[str] = ["https://optiload-fe.up.railway.app"]
+    trusted_hosts: list[str] = ["localhost", "127.0.0.1"]
+    # trusted_hosts: list[str] = ["optiload-be.up.railway.app", "localhost", "127.0.0.1"]
 
     # ─── REGISTRATION ────────────────────────────────────────────────
     allow_public_registration: bool | None = None
@@ -211,7 +231,7 @@ class Settings(BaseSettings):
             return None
         return v
 
-    model_config = SettingsConfigDict(env_prefix="OPTILOAD_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="OPTILOAD_", env_file=_env_file_path, extra="ignore")
 
 
 settings = Settings()

@@ -1,5 +1,7 @@
-# Docker Compose for local development
-# Supports both local PostgreSQL and remote Neon DB
+# Docker Compose for OptiLoad
+# Edit root .env → APP_ENV=local or APP_ENV=production to switch.
+# For local: docker compose up
+# For production-like testing: docker compose --profile production up
 
 version: '3.9'
 
@@ -28,22 +30,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: optiload-backend
-    environment:
-      OPTILOAD_ENVIRONMENT: local
-      OPTILOAD_DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/optiload
-      OPTILOAD_JWT_SECRET_KEY: dev-secret-key-change-in-production-32chars
-      OPTILOAD_CORS_ALLOWED_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
-      OPTILOAD_TRUSTED_HOSTS: '["localhost","127.0.0.1","backend"]'
-      OPTILOAD_ALLOW_PUBLIC_REGISTRATION: "true"
-      OPTILOAD_RATE_LIMIT_BACKEND: memory
-      OPTILOAD_RATE_LIMIT_PER_MINUTE: "100"
-      OPTILOAD_AUTH_LOGIN_RATE_LIMIT_PER_MINUTE: "30"
-      OPTILOAD_DB_POOL_SIZE: "5"
-      OPTILOAD_DB_MAX_OVERFLOW: "10"
-      OPTILOAD_LOG_LEVEL: DEBUG
-      OPTILOAD_EXPOSE_DETAILED_ERRORS: "true"
-      DEMO_MODE: "true"
-      OPTILOAD_DEMO_MODE: "true"
+    env_file:
+      - ./env/.env.development
     ports:
       - "8000:8000"
     depends_on:
@@ -64,7 +52,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://localhost:8000/api/v1
+        VITE_API_BASE_URL: /api/v1
     container_name: optiload-frontend
     ports:
       - "5173:80"
@@ -72,8 +60,6 @@ services:
       - backend
     networks:
       - optiload-network
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000/api/v1
 
 volumes:
   postgres_data:
@@ -81,28 +67,3 @@ volumes:
 networks:
   optiload-network:
     driver: bridge
-
-# Alternative configurations:
-#
-# For using REMOTE Neon DB (production), set these backend environment variables:
-# - OPTILOAD_DATABASE_URL: postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require
-# - OPTILOAD_DATABASE_READ_URL: postgresql://neondb_owner:npg_bqD7k6ScMjgW@ep-winter-shadow-aj3tdqfj.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require
-#
-# Build locally only:
-#   docker-compose build
-#
-# Start services:
-#   docker-compose up
-#
-# Start in background:
-#   docker-compose up -d
-#
-# View logs:
-#   docker-compose logs -f backend
-#   docker-compose logs -f frontend
-#
-# Stop services:
-#   docker-compose down
-#
-# Remove everything including volumes:
-#   docker-compose down -v

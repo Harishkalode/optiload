@@ -14,6 +14,7 @@ export interface User {
   organizationId: number | null;
   organization?: string;
   mfaEnabled?: boolean;
+  demo_mode?: boolean;
 }
 
 interface AuthState {
@@ -34,6 +35,7 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<string>;
   register: (payload: RegisterPayload) => Promise<string>;
   logout: () => Promise<void>;
+  updateUserDemoMode: (enabled: boolean) => void;
 }
 
 function loadState(): AuthState {
@@ -96,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           organizationId: me.organization_id,
           organization: orgName,
           mfaEnabled: me.mfa_enabled,
+          demo_mode: (me as any).demo_mode,
         };
         setState({
           user,
@@ -126,8 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: string;
       organization_id: number | null;
       mfa_enabled?: boolean;
+      demo_mode?: boolean;
     },
-    tokens?: { access?: string | null },
+    tokens?: { access?: string | null; refresh?: string | null },
   ) => {
     const normalizedRole = normalizeRole(incomingUser.role);
     if (!normalizedRole || !isValidRole(normalizedRole)) {
@@ -142,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       organizationId: incomingUser.organization_id,
       organization: undefined,
       mfaEnabled: incomingUser.mfa_enabled,
+      demo_mode: incomingUser.demo_mode,
     };
 
     // Fetch org name asynchronously
@@ -153,6 +158,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('optiload_access_token', access);
     } else {
       localStorage.removeItem('optiload_access_token');
+    }
+    const refresh = tokens?.refresh;
+    if (refresh) {
+      localStorage.setItem('optiload_refresh_token', refresh);
+    } else {
+      localStorage.removeItem('optiload_refresh_token');
     }
     sessionStorage.setItem(SESSION_FLAG_KEY, '1');
 
@@ -178,8 +189,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: null, role: null, token: null, isAuthenticated: false });
     localStorage.removeItem('optiload_user');
     localStorage.removeItem('optiload_access_token');
+    localStorage.removeItem('optiload_refresh_token');
     localStorage.removeItem('optiload_demo_mode');
     sessionStorage.removeItem(SESSION_FLAG_KEY);
+  };
+
+  const updateUserDemoMode = (enabled: boolean) => {
+    setState(prev => {
+      if (!prev.user) return prev;
+      const updated = { ...prev.user, demo_mode: enabled };
+      localStorage.setItem('optiload_user', JSON.stringify(updated));
+      return { ...prev, user: updated };
+    });
   };
 
   const login = async (email: string, password: string) => {
@@ -191,7 +212,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Invalid user payload');
     }
 
-    return setAuthenticatedState(loginUser, { access: response.access_token ?? null });
+    return setAuthenticatedState(loginUser, {
+      access: response.access_token ?? null,
+      refresh: response.refresh_token ?? null,
+    });
   };
 
   const register = async (payload: RegisterPayload) => {
@@ -203,10 +227,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Invalid registration payload');
     }
 
-    return setAuthenticatedState(user, { access: response.access_token ?? null });
+    return setAuthenticatedState(user, {
+      access: response.access_token ?? null,
+      refresh: response.refresh_token ?? null,
+    });
   };
 
-  const value = useMemo(() => ({ ...state, login, register, logout }), [state]);
+  const value = useMemo(() => ({ ...state, login, register, logout, updateUserDemoMode }), [state]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

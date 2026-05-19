@@ -173,3 +173,6 @@ dist
 .git
 
 rule_registry_optimized.json
+
+# AI Agents
+ai_agents/

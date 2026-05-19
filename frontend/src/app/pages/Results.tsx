@@ -295,7 +295,14 @@ export function Results() {
             // Fetch securements
             setSuggestedSecurements(result.suggested_securements ?? []);
             if (result.securements) {
-              setSecurements(result.securements);
+              const transformed = result.securements.map((s: any, i: number) => ({
+                id: s.id ?? i + 1,
+                type: s.type || 'block',
+                position: [s.x_m ?? 0, s.y_m ?? 0, s.z_m ?? 0] as [number, number, number],
+                load_id: s.load_id ?? 0,
+                ...s,
+              }));
+              setSecurements(transformed);
             }
           } else {
             console.warn('[Results] No placements returned. Vehicle:', vehicle, 'Violations:', violations);

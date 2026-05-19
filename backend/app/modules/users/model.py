@@ -24,6 +24,7 @@ class User(Base):
     status: Mapped[UserStatus] = mapped_column(SAEnum(UserStatus), index=True, default=UserStatus.active)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    demo_mode: Mapped[bool] = mapped_column(Boolean, default=False)
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
 

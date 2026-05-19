@@ -7,6 +7,7 @@ export interface AuthUserPayload {
   role: string;
   organization_id: number | null;
   mfa_enabled?: boolean;
+  demo_mode?: boolean;
 }
 
 export interface AuthResponse {

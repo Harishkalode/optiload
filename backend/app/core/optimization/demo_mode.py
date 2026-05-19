@@ -70,12 +70,11 @@ def get_demo_placements(railcar_type: str) -> list:
 def get_demo_metrics(railcar_type: str) -> Dict[str, Any]:
     if "60" in str(railcar_type).lower():
         return {
-            "floor_spots": 29,
+            "floor_spots": 28,
             "cg_height_in": 93.88,
-            "max_void_space_in": 7.47,
             "num_risers": 2,
-            "num_spacers": 1,
-            "total_weight_kg": 84236,
+            "num_spacers": 4,
+            "total_weight_kg": 78863,
             "total_volume_m3": 119.6,
         }
     return {
@@ -126,7 +125,6 @@ def generate_demo_result_json(
         "metrics": {
             "floor_spots": metrics["floor_spots"],
             "cg_height_in": metrics["cg_height_in"],
-            "max_void_space_in": metrics["max_void_space_in"],
             "num_risers": metrics["num_risers"],
             "num_spacers": metrics["num_spacers"],
             "total_weight_kg": metrics["total_weight_kg"],
@@ -142,12 +140,40 @@ def generate_demo_result_json(
             }
         ] if railcar_type == "50ft" else [
             {
-                "type": "block",
-                "x_m": 9.0,
-                "y_m": 1.118,
+                "type": "airbag",
+                "x_m": 8.72,
+                "y_m": 1.387,
                 "z_m": 1.448,
-                "dimensions_m": {"length": 0.4, "width": 2.896, "height": 0.3},
-            }
+                "dimensions_m": {"length": 0.6, "width": 2.896, "height": 0.4},
+            },
+            {
+                "type": "spacer",
+                "x_m": 7.25,
+                "y_m": 1.387,
+                "z_m": 2.172,
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
+            {
+                "type": "spacer",
+                "x_m": 7.25,
+                "y_m": 1.387,
+                "z_m": 0.724,
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
+            {
+                "type": "spacer",
+                "x_m": 11.52,
+                "y_m": 1.613,
+                "z_m": 2.172,
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
+            {
+                "type": "spacer",
+                "x_m": 11.46,
+                "y_m": 1.613,
+                "z_m": 0.724,
+                "dimensions_m": {"length": 0.3, "width": 0.3, "height": 0.3},
+            },
         ],
         "is_demo": True,
         "demo_note": f"Demo result for {railcar_type} High Cube railcar.",

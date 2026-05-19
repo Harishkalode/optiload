@@ -38,3 +38,10 @@ export async function updateUser(userId: number, payload: Partial<Pick<ApiUser, 
     body: JSON.stringify(payload),
   });
 }
+
+export async function toggleDemoMode(enabled: boolean): Promise<{ demo_mode: boolean }> {
+  return apiRequest<{ demo_mode: boolean }>('/users/me/demo-mode', {
+    method: 'POST',
+    body: JSON.stringify({ enabled }),
+  });
+}

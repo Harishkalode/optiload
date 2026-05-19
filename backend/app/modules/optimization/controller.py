@@ -29,7 +29,8 @@ def run_optimization(payload: OptimizationRunRequest, request: Request, db: Sess
         raise AppError("ORG_REQUIRED", "organization context is required")
     try:
         optimization = _service(db).run(org_id, payload.model_dump(), actor_user_id=current_user.id,
-                                        demo_header=request.headers.get("X-Demo-Mode"))
+                                        demo_header=request.headers.get("X-Demo-Mode"),
+                                        user_demo_mode=getattr(current_user, "demo_mode", False))
     except AppError:
         raise
     except Exception as e:
