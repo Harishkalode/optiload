@@ -190,7 +190,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('optiload_user');
     localStorage.removeItem('optiload_access_token');
     localStorage.removeItem('optiload_refresh_token');
-    localStorage.removeItem('optiload_demo_mode');
     sessionStorage.removeItem(SESSION_FLAG_KEY);
   };
 

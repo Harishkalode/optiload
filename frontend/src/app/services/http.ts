@@ -17,10 +17,8 @@ let refreshInFlight: Promise<boolean> | null = null;
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('optiload_access_token');
-  const demo = localStorage.getItem('optiload_demo_mode');
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (demo === 'true') headers['X-Demo-Mode'] = 'true';
   return headers;
 }
 

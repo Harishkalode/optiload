@@ -22,16 +22,12 @@ export function Settings() {
   const [orgForm, setOrgForm] = useState<Partial<OrgRow>>({});
 
   const { user, updateUserDemoMode } = useAuth();
-  const [demoEnabled, setDemoEnabled] = useState(() => {
-    const cached = localStorage.getItem('optiload_demo_mode');
-    return cached === 'true';
-  });
+  const [demoEnabled, setDemoEnabled] = useState(user?.demo_mode ?? false);
   const [demoToggling, setDemoToggling] = useState(false);
 
   useEffect(() => {
     if (user?.demo_mode !== undefined) {
       setDemoEnabled(user.demo_mode);
-      localStorage.setItem('optiload_demo_mode', user.demo_mode ? 'true' : '');
     }
   }, [user?.demo_mode]);
 
@@ -231,7 +227,6 @@ export function Settings() {
                 await toggleDemoMode(next);
                 setDemoEnabled(next);
                 updateUserDemoMode(next);
-                localStorage.setItem('optiload_demo_mode', next ? 'true' : '');
                 toast.success(next ? 'Demo mode enabled' : 'Demo mode disabled');
               } catch {
                 toast.error('Failed to update demo mode');
