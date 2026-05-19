@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from logging.config import fileConfig
+from pathlib import Path
 import os
+import sys
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.core.config import settings
 from app.core.database.base import Base
 from app.core.database import models as _models  # noqa: F401
 
@@ -14,9 +17,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = os.getenv('OPTILOAD_DATABASE_URL') or os.getenv('DATABASE_URL')
+database_url = str(settings.database_url)
 if database_url:
     config.set_main_option('sqlalchemy.url', database_url)
+else:
+    print("ERROR: No database URL configured. Set OPTILOAD_DATABASE_URL or APP_ENV.", file=sys.stderr)
+    sys.exit(1)
 
 target_metadata = Base.metadata
 

@@ -221,6 +221,8 @@ class Settings(BaseSettings):
         if self.is_production:
             if self.jwt_secret_key == _DEFAULT_JWT_SECRET:
                 raise ValueError("OPTILOAD_JWT_SECRET_KEY must be set to a unique secret in production")
+            if "localhost" in self.database_url:
+                raise ValueError("OPTILOAD_DATABASE_URL must point to a remote database in production (currently points to localhost)")
             if not self.redis_url:
                 raise ValueError("OPTILOAD_REDIS_URL is required in production")
             if "*" in self.cors_allowed_origins:
